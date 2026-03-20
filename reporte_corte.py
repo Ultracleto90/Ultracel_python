@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import mysql.connector
+import requests
+import json
 
 COLOR_HEADER = "#005187"
 COLOR_TITULO = "#003B5C"
@@ -9,11 +10,13 @@ COLOR_PANEL = "#ffffff"
 COLOR_BORDE = "#d0d9e1"
 COLOR_BOTON_ACCION = "#6c757d"
 
-def conectar_bd():
+def obtener_taller_id():
+    """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
     try:
-        return mysql.connector.connect(host="localhost", user="root", password="", database="ultracel")
-    except mysql.connector.Error as err:
-        messagebox.showerror("ERROR DE CONEXION", f"No se pudo establecer comunicacion: {err}")
+        with open("licencia.json", "r") as f:
+            datos = json.load(f)
+            return datos.get("taller_id")
+    except:
         return None
 
 def ventana_corte_caja():
@@ -63,14 +66,43 @@ def ventana_corte_caja():
               bg=COLOR_BOTON_ACCION, fg="white", relief="flat", padx=15, pady=8,
               command=ventana_corte.destroy).pack(side="left")
 
+    # --- LÓGICA CONECTADA A LA API ---
     def cargar_datos():
-        conn = conectar_bd()
-        if not conn: return
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT v.id_venta, DATE_FORMAT(v.fecha_venta, '%Y-%m-%d %H:%i') as fecha, IFNULL(CONCAT(c.nombre, ' ', c.apellidos), 'MOSTRADOR') AS cliente, u.nombre_completo AS vendedor, v.monto_total FROM ventas v LEFT JOIN clientes c ON v.id_cliente = c.id_cliente JOIN usuarios u ON v.id_vendedor = u.id_usuario ORDER BY v.fecha_venta DESC")
         for i in tree_ventas.get_children(): tree_ventas.delete(i)
-        for v in cursor.fetchall():
-            tree_ventas.insert("", "end", values=(v['id_venta'], v['fecha'], v['cliente'], v['vendedor'], f"$ {v['monto_total']:,.2f}"))
-        conn.close()
+        
+        mi_taller_id = obtener_taller_id()
+        if not mi_taller_id: return
+        
+        try:
+            # Reutilizamos la ruta maestra de historial de ventas
+            res = requests.post("http://localhost/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
+            if res.status_code == 200:
+                for v in res.json().get('ventas', []):
+                    tree_ventas.insert("", "end", values=(
+                        v['id_venta'], v['fecha'], v['cliente'], v['vendedor'], f"$ {float(v['monto_total']):,.2f}"
+                    ))
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Error", "No se pudo conectar con el servidor.")
 
+    def mostrar_detalles_venta(event):
+        sel = tree_ventas.selection()
+        if not sel: return
+        id_venta = tree_ventas.item(sel[0], 'values')[0]
+        
+        for i in tree_detalles.get_children(): tree_detalles.delete(i)
+        
+        try:
+            # Reutilizamos la ruta de detalles de venta
+            res = requests.post("http://localhost/api/pos/detalles-venta", json={"id_venta": id_venta})
+            if res.status_code == 200:
+                for d in res.json().get('detalles', []):
+                    subtotal = d['cantidad'] * d['precio_unitario']
+                    tree_detalles.insert("", "end", values=(
+                        d['cantidad'], d['descripcion_linea'],
+                        f"${d['precio_unitario']:.2f}", f"${subtotal:.2f}"
+                    ))
+        except: pass
+
+    # Conectamos el clic en la tabla con la función de detalles
+    tree_ventas.bind("<<TreeviewSelect>>", mostrar_detalles_venta)
     cargar_datos()

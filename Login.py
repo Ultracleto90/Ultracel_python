@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import tkinter as tk
+import subprocess
 from tkinter import messagebox
 from PIL import Image, ImageTk, ImageFilter
 import requests
@@ -140,7 +141,6 @@ def iniciar_sesion():
             messagebox.showerror("Error", "No se pudo conectar con el servidor central.")
 
     def handle_login():
-
         email_ingresado = user_entry.get() 
         password_ingresado = pass_entry.get()
 
@@ -162,16 +162,33 @@ def iniciar_sesion():
             # 4. Laravel dice: ¡Pásale!
             if respuesta.status_code == 200:
                 datos = respuesta.json()
-                usuario = datos['usuario']
+                rol = datos.get('rol')
+                nombre = datos.get('name')
                 
-                messagebox.showinfo("¡Acceso Concedido!", f"Bienvenido al sistema, {usuario['name']}")
+                messagebox.showinfo("¡Acceso Concedido!", f"Bienvenido al sistema, {nombre}\nRol detectado: {rol}")
                 
-                # Por ahora solo cerramos la ventana al tener éxito
+                # Cerramos la ventana del Login
                 root.destroy()
+                
+                # --- EL ENRUTADOR INTELIGENTE ---
+                # Dependiendo del rol, abrimos el archivo correspondiente
+                # sys.executable asegura que usemos el Python correcto de tu entorno virtual
+                if rol == "Admin":
+                    subprocess.Popen([sys.executable, "panel_administrador.py"])
+                elif rol == "Tecnico":
+                    subprocess.Popen([sys.executable, "tecnico.py"])
+                elif rol == "Vendedor" or rol == "vendedor":
+                    subprocess.Popen([sys.executable, "vendedor.py"])
+                else:
+                    messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")
                 
             # Laravel dice: ¡Contraseña equivocada!
             elif respuesta.status_code == 401:
                 messagebox.showerror("Acceso Denegado", "El correo o la contraseña son incorrectos.")
+                
+            # Laravel dice: ¡Estás despedido/bloqueado!
+            elif respuesta.status_code == 403:
+                messagebox.showerror("Acceso Bloqueado", "Tu cuenta ha sido deshabilitada por el administrador.")
                 
             # Laravel dice: ¡Algo explotó internamente!
             else:
@@ -179,7 +196,7 @@ def iniciar_sesion():
 
         except requests.exceptions.ConnectionError:
             # Python dice: ¡Laravel no me contesta!
-            messagebox.showerror("Error de Conexión", "No se pudo conectar con el servidor. Verifica que Docker esté encendido.")
+            messagebox.showerror("Error de Conexión", "No se pudo conectar con el servidor. Verifica que Docker y Laravel estén encendidos.")
 
 
 

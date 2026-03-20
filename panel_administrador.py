@@ -8,6 +8,7 @@ from PIL import Image, ImageTk
 import pandas as pd
 import requests 
 import json
+import reporte_corte
 
 # --- PALETA DE COLORES "ENTERPRISE" ---
 COLOR_BARRA_LATERAL = "#001f3f"  # Azul Marino Oscuro
@@ -54,7 +55,6 @@ class PanelAdministrador:
 
         self.ventana.mainloop()
 
-    # --- CONEXIÓN A BASE DE DATOS ---
     
 
     # --- CONFIGURACIÓN DE BARRA LATERAL ---
@@ -91,8 +91,13 @@ class PanelAdministrador:
 
         # Botón Cerrar Sesión
         def confirmar_salida():
-            if messagebox.askyesno("Confirmación", "¿Deseas cerrar sesión?"):
+            if messagebox.askyesno("Confirmación", "¿Deseas cerrar sesión y volver al inicio?"):
                 self.ventana.destroy()
+                
+                # Lanzamos el Login de nuevo
+                import subprocess
+                import sys
+                subprocess.Popen([sys.executable, "Login.py"])
 
         tk.Button(self.sidebar, text="⏻  Cerrar Sesión", bg="#c0392b", fg="white", 
                   font=("Segoe UI", 11, "bold"), relief="flat", command=confirmar_salida).pack(side="bottom", fill="x", pady=20)
@@ -118,7 +123,8 @@ class PanelAdministrador:
         tk.Label(card, text="Generar el reporte de ventas del día.", font=("Segoe UI", 10), bg=COLOR_BLANCO, fg="#7f8c8d").pack(pady=5)
         
         tk.Button(card, text="EJECUTAR CORTE", font=("Segoe UI", 10, "bold"), bg=COLOR_ACCENTO, 
-                  fg="white", relief="flat", padx=20, cursor="hand2").pack(pady=20)
+                  fg="white", relief="flat", padx=20, cursor="hand2", 
+                  command=reporte_corte.ventana_corte_caja).pack(pady=20)
 
     # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
     def admin_usuarios(self):
@@ -346,7 +352,7 @@ class PanelAdministrador:
 
         style = ttk.Style()
         style.configure("Treeview", font=("Segoe UI", 10), rowheight=30)
-        style.heading("Treeview", font=("Segoe UI", 11, "bold"))
+        style.configure("Treeview.Heading", font=("Segoe UI", 11, "bold"))
 
         columnas = ("ID", "Fecha", "Técnico", "Producto", "Cantidad", "Estado")
         tree = ttk.Treeview(frame_tabla, columns=columnas, show="headings", selectmode="browse")
@@ -363,29 +369,47 @@ class PanelAdministrador:
 
         def cargar_datos():
             for i in tree.get_children(): tree.delete(i)
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("""SELECT s.id_solicitud, DATE_FORMAT(s.fecha_solicitud, '%Y-%m-%d') as fecha, 
-                           u.nombre_completo, s.nombre_producto, s.cantidad_solicitada, s.estado_solicitud 
-                           FROM solicitudes_material s 
-                           JOIN usuarios u ON s.id_tecnico_solicitante = u.id_usuario 
-                           ORDER BY s.fecha_solicitud DESC""")
-            for r in cursor.fetchall():
-                tree.insert("", "end", values=(r['id_solicitud'], r['fecha'], r['nombre_completo'], 
-                                               r['nombre_producto'], r['cantidad_solicitada'], r['estado_solicitud']))
-            conn.close()
+            
+            mi_taller_id = obtener_taller_id()
+            if not mi_taller_id: return
+            
+            try:
+                res = requests.post("http://localhost/api/material/admin-listar", json={"taller_id": mi_taller_id})
+                if res.status_code == 200:
+                    for r in res.json().get('solicitudes', []):
+                        tree.insert("", "end", values=(
+                            r['id_solicitud'], 
+                            r['fecha'], 
+                            r['nombre_completo'], 
+                            r['nombre_producto'], 
+                            r['cantidad_solicitada'], 
+                            r['estado_solicitud']
+                        ))
+            except requests.exceptions.ConnectionError:
+                pass # Evitamos spam visual
 
         def actualizar_estado(nuevo):
             sel = tree.selection()
-            if not sel: return messagebox.showwarning("Selección", "Elige una solicitud.")
-            id_s = tree.item(sel)['values'][0]
-            conn = self.conectar_bd()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE solicitudes_material SET estado_solicitud = %s WHERE id_solicitud = %s", (nuevo, id_s))
-            conn.commit()
-            conn.close()
-            cargar_datos()
+            if not sel: 
+                return messagebox.showwarning("Selección", "Elige una solicitud.")
+            
+            # Extraemos el ID de la solicitud seleccionada
+            id_s = tree.item(sel[0])['values'][0]
+            
+            try:
+                payload = {
+                    "id_solicitud": id_s,
+                    "estado": nuevo
+                }
+                res = requests.post("http://localhost/api/material/actualizar-estado", json=payload)
+                
+                if res.status_code == 200:
+                    messagebox.showinfo("Éxito", f"La solicitud ha sido marcada como '{nuevo}'.")
+                    cargar_datos() # Recargamos la tabla automáticamente
+                else:
+                    messagebox.showerror("Error", "No se pudo actualizar el estado de la solicitud.")
+            except requests.exceptions.ConnectionError:
+                messagebox.showerror("Error", "Fallo de conexión al servidor.")
 
         # Botones inferioresz
         btn_f = tk.Frame(self.main_content, bg=COLOR_CUERPO)
@@ -408,6 +432,16 @@ class PanelAdministrador:
         if path:
             df.to_excel(path, index=False)
             messagebox.showinfo("Guardado", "El reporte se ha exportado con éxito.")
+
+    def cerrar_sesion(self):
+        if messagebox.askyesno("Cerrar Sesión", "¿Estás seguro de que deseas salir y volver al Login?"):
+            
+            self.root.destroy() 
+            
+            
+            import subprocess
+            import sys
+            subprocess.Popen([sys.executable, "Login.py"])
 
 if __name__ == "__main__":
     app = PanelAdministrador()

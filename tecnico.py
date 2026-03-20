@@ -3,7 +3,8 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageFilter
-import mysql.connector
+import requests
+import json
 
 # --- PALETA DE COLORES PROFESIONAL ---
 COLOR_PRIMARIO       = "#1B2A4A"   # Azul marino oscuro (header, acentos fuertes)
@@ -37,6 +38,14 @@ FUENTE_ETIQUETA      = ("Segoe UI", 9)
 FUENTE_TABLA         = ("Segoe UI", 9)
 FUENTE_TABLA_HEAD    = ("Segoe UI", 10, "bold")
 
+def obtener_taller_id():
+    """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
+    try:
+        with open("licencia.json", "r") as f:
+            datos = json.load(f)
+            return datos.get("taller_id")
+    except:
+        return None
 
 def configurar_estilos_ttk():
     """Configura los estilos ttk para Treeview, Combobox, Scrollbar, etc."""
@@ -323,16 +332,13 @@ class PanelTecnico:
                  font=FUENTE_ETIQUETA, bg=COLOR_FONDO_PANEL,
                  fg=COLOR_TEXTO_GRIS).pack(anchor="w")
 
-        # Separador
         tk.Frame(self.panel_dinamico, height=2, bg=COLOR_BORDE).pack(fill="x", padx=15, pady=(5, 10))
 
         # --- Treeview ---
         tree_frame = tk.Frame(self.panel_dinamico, bg=COLOR_BORDE, bd=0)
         tree_frame.pack(pady=0, padx=15, fill="both", expand=True)
 
-        self.tree = ttk.Treeview(tree_frame,
-                                 columns=("ID", "Dispositivo", "Problema Reportado"),
-                                 show="headings", height=15, style="Custom.Treeview")
+        self.tree = ttk.Treeview(tree_frame, columns=("ID", "Dispositivo", "Problema Reportado"), show="headings", height=15, style="Custom.Treeview")
         self.tree.heading("ID", text="ID Orden")
         self.tree.heading("Dispositivo", text="Dispositivo")
         self.tree.heading("Problema Reportado", text="Problema Reportado")
@@ -340,8 +346,7 @@ class PanelTecnico:
         self.tree.column("Dispositivo", width=200)
         self.tree.column("Problema Reportado", width=350)
 
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical",
-                                  command=self.tree.yview, style="Custom.Vertical.TScrollbar")
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview, style="Custom.Vertical.TScrollbar")
         self.tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y", padx=(0, 1), pady=1)
         self.tree.pack(fill="both", expand=True, padx=1, pady=1)
@@ -349,34 +354,43 @@ class PanelTecnico:
         self.tree.tag_configure('evenrow', background=COLOR_FILA_PAR)
         self.tree.tag_configure('oddrow', background=COLOR_FILA_IMPAR)
 
-        conn = self.conectar_bd()
-        if not conn: return
-        cursor = conn.cursor(dictionary=True)
-        sql = "SELECT r.id_reparacion, CONCAT(e.marca, ' ', e.modelo) AS dispositivo, r.problema_reportado FROM reparaciones AS r JOIN equipos AS e ON r.id_equipo = e.id_equipo WHERE r.estado IN ('Recibido', 'En Diagnostico') ORDER BY r.fecha_recepcion ASC;"
-        cursor.execute(sql)
-        reparaciones = cursor.fetchall()
-        conn.close()
+        mi_taller_id = obtener_taller_id()
+        if not mi_taller_id:
+            return messagebox.showerror("Error", "No hay licencia activa.")
+            
         for i in self.tree.get_children(): self.tree.delete(i)
-        for idx, rep in enumerate(reparaciones):
-            tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
-            self.tree.insert("", "end", values=(rep['id_reparacion'], rep['dispositivo'], rep['problema_reportado']), tags=(tag,))
+
+        try:
+            url_api = "http://localhost/api/reparaciones/pendientes"
+            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
+            
+            if respuesta.status_code == 200:
+                reparaciones = respuesta.json().get('reparaciones', [])
+                for idx, rep in enumerate(reparaciones):
+                    tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+                    self.tree.insert("", "end", values=(rep.get('id_reparacion'), rep.get('dispositivo'), rep.get('problema_reportado')), tags=(tag,))
+        except:
+            messagebox.showerror("Error", "Sin conexión al servidor.")
+
+        # VINCULAMOS LA FUNCIÓN RESCATADA
         self.tree.bind("<Double-1>", self.mostrar_detalles_reparacion)
 
+    # --- LA FUNCIÓN RESCATADA Y CONECTADA A LARAVEL ---
     def mostrar_detalles_reparacion(self, event):
         item_seleccionado = self.tree.selection()
         if not item_seleccionado: return
+        
         id_reparacion = self.tree.item(item_seleccionado[0], 'values')[0]
-        conn = self.conectar_bd()
-        if not conn: return
-        cursor = conn.cursor(dictionary=True)
-        sql_detalles = "SELECT r.*, e.*, c.*, u.nombre_completo as tecnico_asignado FROM reparaciones AS r JOIN equipos AS e ON r.id_equipo = e.id_equipo JOIN clientes AS c ON e.id_cliente = c.id_cliente LEFT JOIN usuarios u ON r.id_tecnico_asignado = u.id_usuario WHERE r.id_reparacion = %s;"
-        cursor.execute(sql_detalles, (id_reparacion,))
-        detalles = cursor.fetchone()
-        if not detalles['id_tecnico_asignado']:
-            cursor.execute("UPDATE reparaciones SET id_tecnico_asignado = %s WHERE id_reparacion = %s", (self.id_tecnico_logueado, id_reparacion))
-            conn.commit()
-            detalles['tecnico_asignado'] = "Asignado a ti ahora!"
-        conn.close()
+
+        # Pedimos los detalles a Laravel
+        try:
+            res = requests.post("http://localhost/api/reparaciones/detalles", json={"id_reparacion": id_reparacion})
+            if res.status_code == 200:
+                detalles = res.json().get('detalles', {})
+            else:
+                return messagebox.showerror("Error", "No se pudo cargar la información.")
+        except:
+            return messagebox.showerror("Error", "Sin conexión al servidor.")
 
         ventana_detalles = tk.Toplevel(self.ventana)
         ventana_detalles.title(f"Detalles de Reparacion #{id_reparacion}")
@@ -384,45 +398,38 @@ class PanelTecnico:
         ventana_detalles.configure(bg=COLOR_FONDO_SECCION)
         ventana_detalles.resizable(False, False)
 
-        # Barra superior de la ventana de detalles
         top_bar = tk.Frame(ventana_detalles, bg=COLOR_PRIMARIO, height=50)
         top_bar.pack(fill="x")
         top_bar.pack_propagate(False)
-        tk.Label(top_bar, text=f"\U0001F527  Reparacion #{id_reparacion}",
-                 font=FUENTE_SUBTITULO, bg=COLOR_PRIMARIO,
-                 fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=20, pady=10)
+        tk.Label(top_bar, text=f"\U0001F527  Reparacion #{id_reparacion}", font=FUENTE_SUBTITULO, bg=COLOR_PRIMARIO, fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=20, pady=10)
 
         main_frame = tk.Frame(ventana_detalles, bg=COLOR_FONDO_SECCION, padx=25, pady=15)
         main_frame.pack(fill="both", expand=True)
 
         def marcar_como_terminado():
-            if messagebox.askyesno("Confirmar", "Estas seguro de que has terminado esta reparacion?"):
-                conn_update = self.conectar_bd()
-                if not conn_update: return
-                cursor_update = conn_update.cursor()
-                sql_update = "UPDATE reparaciones SET estado = 'Reparado', fecha_entrega_real = NOW() WHERE id_reparacion = %s"
-                cursor_update.execute(sql_update, (id_reparacion,))
-                conn_update.commit()
-                conn_update.close()
-                messagebox.showinfo("Exito", f"La reparacion #{id_reparacion} ha sido marcada como 'Reparada'.", parent=ventana_detalles)
-                ventana_detalles.destroy()
-                self.cargar_pendientes()
+            if messagebox.askyesno("Confirmar", "¿Estás seguro de que has terminado esta reparación?"):
+                try:
+                    res_up = requests.post("http://localhost/api/reparaciones/terminar", json={"id_reparacion": id_reparacion})
+                    if res_up.status_code == 200:
+                        messagebox.showinfo("Exito", f"Reparacion #{id_reparacion} marcada como 'Reparada'.", parent=ventana_detalles)
+                        ventana_detalles.destroy()
+                        self.cargar_pendientes()
+                    else:
+                        messagebox.showerror("Error", "No se pudo actualizar.")
+                except:
+                    messagebox.showerror("Error", "Sin conexión al servidor.")
 
         def crear_seccion(parent, titulo):
             sec_frame = tk.Frame(parent, bg=COLOR_FONDO_SECCION)
             sec_frame.pack(fill="x", pady=(14, 0))
-            tk.Label(sec_frame, text=titulo, font=FUENTE_SUBTITULO,
-                     bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).pack(anchor="w")
+            tk.Label(sec_frame, text=titulo, font=FUENTE_SUBTITULO, bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).pack(anchor="w")
             tk.Frame(parent, height=2, bg=COLOR_SECUNDARIO).pack(fill="x", pady=(3, 6))
 
         def crear_detalle(parent, campo, valor):
             frame = tk.Frame(parent, bg=COLOR_FONDO_SECCION)
             frame.pack(fill="x", pady=2)
-            tk.Label(frame, text=f"{campo}:", font=FUENTE_CUERPO_BOLD,
-                     bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).pack(side="left")
-            tk.Label(frame, text=valor, font=FUENTE_CUERPO,
-                     bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS,
-                     wraplength=300, justify="left").pack(side="left", padx=8)
+            tk.Label(frame, text=f"{campo}:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).pack(side="left")
+            tk.Label(frame, text=valor if valor else 'N/A', font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS, wraplength=300, justify="left").pack(side="left", padx=8)
 
         crear_seccion(main_frame, "Datos del Equipo")
         crear_detalle(main_frame, "Dispositivo", f"{detalles.get('marca')} {detalles.get('modelo')}")
@@ -436,12 +443,11 @@ class PanelTecnico:
 
         crear_seccion(main_frame, "Detalles de la Reparacion")
         crear_detalle(main_frame, "Problema Reportado", detalles.get('problema_reportado'))
-        crear_detalle(main_frame, "Tecnico Asignado", detalles.get('tecnico_asignado'))
+        crear_detalle(main_frame, "Tecnico Asignado", detalles.get('tecnico_asignado', 'Sin asignar'))
         crear_detalle(main_frame, "Estado Actual", detalles.get('estado'))
 
-        if detalles['estado'] not in ['Reparado', 'Entregado', 'No Reparado']:
-            btn = crear_boton(main_frame, "Terminar Reparacion",
-                              marcar_como_terminado, COLOR_EXITO, height=2)
+        if detalles.get('estado') not in ['Reparado', 'Entregado', 'No Reparado']:
+            btn = crear_boton(main_frame, "Terminar Reparacion", marcar_como_terminado, COLOR_EXITO, height=2)
             btn.pack(fill="x", pady=(25, 0))
 
     def cargar_inventario(self):
@@ -499,132 +505,42 @@ class PanelTecnico:
                 tree_inventario.delete(i)
 
             termino_busqueda = search_var.get()
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor(dictionary=True)
+            mi_taller_id = obtener_taller_id()
+            
+            if not mi_taller_id:
+                return
 
-            sql = """
-                SELECT sku, nombre_producto, tipo_producto, stock, precio_venta, ubicacion_almacen 
-                FROM inventario 
-                WHERE nombre_producto LIKE %s OR marca_compatible LIKE %s OR sku LIKE %s
-                ORDER BY nombre_producto ASC
-            """
-            like_query = f"%{termino_busqueda}%"
-            cursor.execute(sql, (like_query, like_query, like_query))
-            productos = cursor.fetchall()
-            conn.close()
+            try:
+                url_api = "http://localhost/api/inventario/buscar"
+                payload = {
+                    "taller_id": mi_taller_id,
+                    "termino": termino_busqueda
+                }
+                respuesta = requests.post(url_api, json=payload)
 
-            for i, prod in enumerate(productos):
-                tag = 'evenrow' if i % 2 == 0 else 'oddrow'
-                precio_val = prod.get('precio_venta')
-                precio_formato = f"${precio_val:.2f}" if precio_val is not None else "N/A"
-                tree_inventario.insert("", "end", values=(
-                    prod.get('sku'), prod.get('nombre_producto'), prod.get('tipo_producto'),
-                    prod.get('stock'), precio_formato, prod.get('ubicacion_almacen')
-                ), tags=(tag,))
+                if respuesta.status_code == 200:
+                    productos = respuesta.json().get('productos', [])
+                    for i, prod in enumerate(productos):
+                        tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+                        precio_val = prod.get('precio_venta')
+                        # Formateamos el precio para que se vea bien
+                        precio_formato = f"${float(precio_val):.2f}" if precio_val is not None else "N/A"
+                        
+                        tree_inventario.insert("", "end", values=(
+                            prod.get('sku'), 
+                            prod.get('nombre_producto'), 
+                            prod.get('tipo_producto'),
+                            prod.get('stock'), 
+                            precio_formato, 
+                            prod.get('ubicacion_almacen')
+                        ), tags=(tag,))
+            except requests.exceptions.ConnectionError:
+                pass # Usamos pass en lugar de messagebox para evitar spam si escriben muy rápido
 
         search_var.trace_add("write", actualizar_lista_inventario)
         actualizar_lista_inventario()
 
-    def abrir_formulario_producto(self, id_producto_a_editar=None):
-        ventana_formulario = tk.Toplevel(self.ventana)
-        ventana_formulario.configure(bg=COLOR_FONDO_SECCION)
-        ventana_formulario.geometry("480x650")
-        ventana_formulario.resizable(False, False)
-        producto_existente = None
-        if id_producto_a_editar:
-            ventana_formulario.title("Editar Producto")
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM inventario WHERE id_producto = %s", (id_producto_a_editar,))
-            producto_existente = cursor.fetchone()
-            conn.close()
-        else:
-            ventana_formulario.title("Agregar Nuevo Producto")
-
-        # Barra superior
-        top_bar = tk.Frame(ventana_formulario, bg=COLOR_PRIMARIO, height=50)
-        top_bar.pack(fill="x")
-        top_bar.pack_propagate(False)
-        titulo_text = "Editar Producto" if producto_existente else "Nuevo Producto"
-        tk.Label(top_bar, text=titulo_text,
-                 font=FUENTE_SUBTITULO, bg=COLOR_PRIMARIO,
-                 fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=20, pady=10)
-
-        form_frame = tk.Frame(ventana_formulario, bg=COLOR_FONDO_SECCION, padx=25, pady=10)
-        form_frame.pack(fill="both", expand=True)
-
-        entries = {}
-        campos = {"SKU (Codigo Unico):": "sku", "Nombre del Producto:": "nombre_producto", "Marca Compatible:": "marca_compatible", "Modelo Compatible:": "modelo_compatible", "Stock (Cantidad):": "stock", "Precio de Compra $:": "precio_compra", "Precio de Venta $:": "precio_venta", "Ubicacion en Almacen:": "ubicacion_almacen", "Descripcion:": "descripcion"}
-        for label, key in campos.items():
-            tk.Label(form_frame, text=label, font=FUENTE_CUERPO_BOLD,
-                     bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO,
-                     anchor="w").pack(fill="x", pady=(8, 2))
-            valor_inicial = str(producto_existente.get(key, '')) if producto_existente else ''
-            if key == "descripcion":
-                entry_frame, entry = crear_text_estilizado(form_frame, height=3)
-                entry.insert("1.0", valor_inicial)
-                entry_frame.pack(fill="x")
-            else:
-                entry_frame, entry = crear_entry_estilizado(form_frame)
-                entry.insert(0, valor_inicial)
-                entry_frame.pack(fill="x")
-            entries[key] = entry
-
-        def guardar_producto():
-            datos_form = {}
-            for key, widget in entries.items():
-                if isinstance(widget, tk.Text): datos_form[key] = widget.get("1.0", "end-1c")
-                else: datos_form[key] = widget.get()
-            if not datos_form['sku'] or not datos_form['nombre_producto'] or not datos_form['stock'].isdigit():
-                messagebox.showwarning("Datos Invalidos", "El SKU, Nombre y Stock (numerico) son obligatorios.", parent=ventana_formulario)
-                return
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor()
-            try:
-                if producto_existente:
-                    sql = "UPDATE inventario SET sku=%s, nombre_producto=%s, descripcion=%s, marca_compatible=%s, modelo_compatible=%s, stock=%s, precio_compra=%s, precio_venta=%s, ubicacion_almacen=%s WHERE id_producto = %s"
-                    datos_tupla = (datos_form['sku'], datos_form['nombre_producto'], datos_form['descripcion'], datos_form['marca_compatible'], datos_form['modelo_compatible'], int(datos_form['stock']), float(datos_form['precio_compra']) if datos_form['precio_compra'] else None, float(datos_form['precio_venta']) if datos_form['precio_venta'] else 0.0, datos_form['ubicacion_almacen'], id_producto_a_editar)
-                else:
-                    sql = "INSERT INTO inventario (sku, nombre_producto, descripcion, marca_compatible, modelo_compatible, stock, precio_compra, precio_venta, ubicacion_almacen) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
-                    datos_tupla = (datos_form['sku'], datos_form['nombre_producto'], datos_form['descripcion'], datos_form['marca_compatible'], datos_form['modelo_compatible'], int(datos_form['stock']), float(datos_form['precio_compra']) if datos_form['precio_compra'] else None, float(datos_form['precio_venta']) if datos_form['precio_venta'] else 0.0, datos_form['ubicacion_almacen'])
-                cursor.execute(sql, datos_tupla)
-                conn.commit()
-                messagebox.showinfo("Exito", "Producto guardado correctamente.", parent=ventana_formulario)
-                ventana_formulario.destroy()
-                self.cargar_inventario()
-            except mysql.connector.Error as err:
-                if err.errno == 1062: messagebox.showerror("Error de Duplicado", f"El SKU '{datos_form['sku']}' ya existe.", parent=ventana_formulario)
-                else: messagebox.showerror("Error de Base de Datos", f"Error: {err}", parent=ventana_formulario)
-            finally:
-                conn.close()
-
-        btn_guardar = crear_boton(ventana_formulario, "Guardar Producto",
-                                  guardar_producto, COLOR_EXITO, height=2)
-        btn_guardar.pack(fill="x", padx=25, pady=(5, 20))
-
-    def eliminar_producto_seleccionado(self):
-        item_seleccionado = self.tree_inventario.selection()
-        if not item_seleccionado:
-            messagebox.showwarning("Ninguna Seleccion", "Por favor, selecciona un producto de la lista para eliminar.")
-            return
-        valores = self.tree_inventario.item(item_seleccionado[0], 'values')
-        sku_a_eliminar = valores[0]; nombre_a_eliminar = valores[1]
-        if messagebox.askyesno("Confirmar Eliminacion", f"Estas seguro de que quieres eliminar permanentemente el producto:\n\n{nombre_a_eliminar} (SKU: {sku_a_eliminar})?"):
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor()
-            try:
-                cursor.execute("DELETE FROM inventario WHERE sku = %s", (sku_a_eliminar,))
-                conn.commit()
-                messagebox.showinfo("Eliminado", "El producto ha sido eliminado correctamente.")
-                self.cargar_inventario()
-            except mysql.connector.Error as err:
-                messagebox.showerror("Error de Base de Datos", f"No se pudo eliminar el producto.\nError: {err}")
-            finally:
-                conn.close()
+    
 
     def cargar_diagnostico(self):
         self.limpiar_panel()
@@ -659,18 +575,27 @@ class PanelTecnico:
         form_container.pack(fill="both", expand=True, padx=15, pady=10)
 
         # Llenar Combobox
-        conn = self.conectar_bd()
-        if not conn: return
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT r.id_reparacion, CONCAT(e.marca, ' ', e.modelo) as equipo 
-            FROM reparaciones r JOIN equipos e ON r.id_equipo = e.id_equipo 
-            WHERE r.estado IN ('Recibido', 'En Diagnostico')
-        """)
-        reparaciones_pendientes = cursor.fetchall()
-        conn.close()
+        mi_taller_id = obtener_taller_id()
+        if not mi_taller_id:
+            return messagebox.showerror("Error", "No hay licencia activa.")
 
-        combo_reparaciones['values'] = [f"{r['id_reparacion']} - {r['equipo']}" for r in reparaciones_pendientes]
+        try:
+            url_api = "http://localhost/api/reparaciones/pendientes"
+            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
+            
+            if respuesta.status_code == 200:
+                reparaciones = respuesta.json().get('reparaciones', [])
+                # ¡AQUÍ ES DONDE SE LLENA AHORA!
+                combo_reparaciones['values'] = [
+                    f"{r.get('id_reparacion')} - {r.get('dispositivo')}" 
+                    for r in reparaciones
+                ]
+            else:
+                messagebox.showerror("Error", "No se pudieron cargar las reparaciones pendientes.")
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Error", "Sin conexión al servidor.")
+
+        
 
         def on_reparacion_seleccionada(event):
             for widget in form_container.winfo_children():
@@ -743,15 +668,24 @@ class PanelTecnico:
             tree_inventario.column("Precio", width=80)
             tree_inventario.pack(fill="x", expand=True, padx=1, pady=1)
 
-            conn_inv = self.conectar_bd()
-            cursor_inv = conn_inv.cursor(dictionary=True)
-            cursor_inv.execute("SELECT id_producto, nombre_producto, stock, precio_venta FROM inventario WHERE stock > 0")
-            inventario_disponible = cursor_inv.fetchall()
-            conn_inv.close()
-            for prod in inventario_disponible:
-                tree_inventario.insert("", "end", values=(prod['id_producto'], prod['nombre_producto'], prod['stock'], prod['precio_venta']))
+            # --- LLAMADA API: Cargar inventario disponible ---
+            mi_taller_id = obtener_taller_id()
+            if mi_taller_id:
+                try:
+                    res_inv = requests.post("http://localhost/api/diagnostico/inventario", json={"taller_id": mi_taller_id})
+                    if res_inv.status_code == 200:
+                        inventario = res_inv.json().get('inventario', [])
+                        for prod in inventario:
+                            tree_inventario.insert("", "end", values=(
+                                prod.get('id_producto'), 
+                                prod.get('nombre_producto'), 
+                                prod.get('stock'), 
+                                prod.get('precio_venta')
+                            ))
+                except requests.exceptions.ConnectionError:
+                    messagebox.showerror("Error", "No se pudo cargar el inventario.")
 
-            # Botones de accion 
+            # --- Botones de acción ---
             botones_grid_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_PANEL)
             botones_grid_frame.pack(fill="x", pady=10)
             botones_grid_frame.grid_columnconfigure(1, weight=1)
@@ -760,7 +694,9 @@ class PanelTecnico:
                 item_sel = tree_inventario.selection()
                 if not item_sel: return
                 pieza_data = tree_inventario.item(item_sel[0], 'values')
-                tree_piezas_usadas.insert("", "end", values=pieza_data)
+                # Insertamos ID, Nombre y Precio (ignorando el stock)
+                tree_piezas_usadas.insert("", "end", values=(pieza_data[0], pieza_data[1], pieza_data[3]))
+            
             def quitar_pieza():
                 item_sel = tree_piezas_usadas.selection()
                 if not item_sel: return
@@ -769,46 +705,44 @@ class PanelTecnico:
             def guardar_diagnostico():
                 diagnostico = diagnostico_text.get("1.0", "end-1c")
                 presupuesto = presupuesto_entry.get()
-                piezas_a_usar = [tree_piezas_usadas.item(item, 'values') for item in tree_piezas_usadas.get_children()]
+                
+                # Formateamos las piezas para enviarlas a Laravel
+                piezas_a_usar = []
+                for item in tree_piezas_usadas.get_children():
+                    val = tree_piezas_usadas.item(item, 'values')
+                    piezas_a_usar.append({
+                        "id_producto": val[0],
+                        "precio": val[2]
+                    })
 
                 if not diagnostico or not presupuesto or not piezas_a_usar:
-                    messagebox.showwarning("Datos Incompletos", "Debes rellenar el diagnostico, el presupuesto y seleccionar al menos una pieza.")
-                    return
+                    return messagebox.showwarning("Datos Incompletos", "Debes rellenar el diagnóstico, el presupuesto y seleccionar al menos una pieza.")
 
-                if messagebox.askyesno("Confirmar", "Guardar este diagnostico y presupuesto?"):
-                    conn_save = self.conectar_bd()
-                    cursor_save = conn_save.cursor()
-                    cursor_save.execute("""
-                        UPDATE reparaciones SET diagnostico_tecnico = %s, presupuesto = %s, estado = 'Esperando Aprobacion'
-                        WHERE id_reparacion = %s
-                    """, (diagnostico, float(presupuesto), id_reparacion_seleccionada))
+                if messagebox.askyesno("Confirmar", "¿Guardar este diagnóstico y presupuesto?"):
+                    try:
+                        payload = {
+                            "id_reparacion": id_reparacion_seleccionada,
+                            "diagnostico": diagnostico,
+                            "presupuesto": presupuesto,
+                            "piezas": piezas_a_usar
+                        }
+                        res_save = requests.post("http://localhost/api/diagnostico/guardar", json=payload)
+                        
+                        if res_save.status_code == 200:
+                            messagebox.showinfo("Éxito", res_save.json().get('message', 'Diagnóstico guardado.'))
+                            self.cargar_pendientes()
+                        else:
+                            messagebox.showerror("Error", "No se pudo guardar el diagnóstico.")
+                    except requests.exceptions.ConnectionError:
+                        messagebox.showerror("Error", "Sin conexión al servidor.")
 
-                    cursor_save.execute("DELETE FROM reparacion_piezas WHERE id_reparacion = %s", (id_reparacion_seleccionada,))
-                    for pieza in piezas_a_usar:
-                        id_prod, _, _, precio_prod = pieza
-                        cursor_save.execute("""
-                            INSERT INTO reparacion_piezas (id_reparacion, id_producto, precio_en_reparacion)
-                            VALUES (%s, %s, %s)
-                        """, (id_reparacion_seleccionada, id_prod, precio_prod))
-
-                    conn_save.commit()
-                    conn_save.close()
-                    messagebox.showinfo("Exito", "Diagnostico guardado. La reparacion ahora esta esperando la aprobacion del cliente.")
-                    self.cargar_pendientes()
-
-            btn_anadir = crear_boton(botones_grid_frame, "Anadir Pieza ->",
-                                     anadir_pieza, COLOR_SECUNDARIO,
-                                     fuente=FUENTE_CUERPO_BOLD)
+            btn_anadir = crear_boton(botones_grid_frame, "Anadir Pieza ->", anadir_pieza, COLOR_SECUNDARIO, fuente=FUENTE_CUERPO_BOLD)
             btn_anadir.grid(row=0, column=0, padx=3, pady=5)
 
-            btn_quitar = crear_boton(botones_grid_frame, "<- Quitar Pieza",
-                                     quitar_pieza, COLOR_PELIGRO,
-                                     fuente=FUENTE_CUERPO_BOLD)
+            btn_quitar = crear_boton(botones_grid_frame, "<- Quitar Pieza", quitar_pieza, COLOR_PELIGRO, fuente=FUENTE_CUERPO_BOLD)
             btn_quitar.grid(row=0, column=2, padx=3, pady=5)
 
-            btn_guardar_diag = crear_boton(botones_grid_frame, "Guardar Diagnostico",
-                                           guardar_diagnostico, COLOR_EXITO,
-                                           fuente=FUENTE_CUERPO_BOLD)
+            btn_guardar_diag = crear_boton(botones_grid_frame, "Guardar Diagnostico", guardar_diagnostico, COLOR_EXITO, fuente=FUENTE_CUERPO_BOLD)
             btn_guardar_diag.grid(row=0, column=3, padx=3, pady=5, sticky="ew")
 
         combo_reparaciones.bind("<<ComboboxSelected>>", on_reparacion_seleccionada)
@@ -905,20 +839,20 @@ class PanelTecnico:
             for i in tree_solicitudes.get_children():
                 tree_solicitudes.delete(i)
 
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT DATE_FORMAT(fecha_solicitud, '%%Y-%%m-%%d') as fecha, nombre_producto, cantidad_solicitada, estado_solicitud 
-                FROM solicitudes_material 
-                WHERE id_tecnico_solicitante = %s 
-                ORDER BY fecha_solicitud DESC
-            """, (self.id_tecnico_logueado,))
-            solicitudes = cursor.fetchall()
-            conn.close()
-            for idx, s in enumerate(solicitudes):
-                tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
-                tree_solicitudes.insert("", "end", values=(s['fecha'], s['nombre_producto'], s['cantidad_solicitada'], s['estado_solicitud']), tags=(tag,))
+            try:
+                res = requests.post("http://localhost/api/material/listar", json={"id_tecnico": self.id_tecnico_logueado})
+                if res.status_code == 200:
+                    solicitudes = res.json().get('solicitudes', [])
+                    for idx, s in enumerate(solicitudes):
+                        tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
+                        tree_solicitudes.insert("", "end", values=(
+                            s.get('fecha'), 
+                            s.get('nombre_producto'), 
+                            s.get('cantidad_solicitada'), 
+                            s.get('estado_solicitud')
+                        ), tags=(tag,))
+            except requests.exceptions.ConnectionError:
+                pass # Evitamos spam de errores si recarga rápido
 
         def enviar_solicitud():
             nombre = nombre_prod_entry.get()
@@ -926,18 +860,33 @@ class PanelTecnico:
             descripcion = descripcion_text.get("1.0", "end-1c")
 
             if not nombre or not cantidad.isdigit():
-                messagebox.showwarning("Datos Invalidos", "El nombre del producto y una cantidad numerica son obligatorios.")
-                return
+                return messagebox.showwarning("Datos Invalidos", "El nombre del producto y una cantidad numerica son obligatorios.")
 
-            conn = self.conectar_bd()
-            if not conn: return
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO solicitudes_material (id_tecnico_solicitante, nombre_producto, descripcion, cantidad_solicitada)
-                VALUES (%s, %s, %s, %s)
-            """, (self.id_tecnico_logueado, nombre, descripcion, int(cantidad)))
-            conn.commit()
-            conn.close()
+            mi_taller_id = obtener_taller_id()
+            if not mi_taller_id:
+                return messagebox.showerror("Error", "No hay licencia activa.")
+
+            try:
+                payload = {
+                    "id_tecnico": self.id_tecnico_logueado,
+                    "taller_id": mi_taller_id,
+                    "nombre_producto": nombre,
+                    "cantidad": int(cantidad),
+                    "descripcion": descripcion
+                }
+                res = requests.post("http://localhost/api/material/crear", json=payload)
+                
+                if res.status_code == 200:
+                    messagebox.showinfo("Éxito", "Tu solicitud de material ha sido enviada al administrador.")
+                    # Limpiar formulario
+                    nombre_prod_entry.delete(0, tk.END)
+                    descripcion_text.delete("1.0", tk.END)
+                    # Actualizar lista
+                    actualizar_lista_solicitudes()
+                else:
+                    messagebox.showerror("Error", "No se pudo enviar la solicitud al servidor.")
+            except requests.exceptions.ConnectionError:
+                messagebox.showerror("Error", "Sin conexión al servidor.")
 
             messagebox.showinfo("Exito", "Tu solicitud de material ha sido enviada al administrador.")
 
@@ -961,3 +910,7 @@ class PanelTecnico:
             self.ventana.destroy()
             from Login import iniciar_sesion
             iniciar_sesion()
+
+
+if __name__ == "__main__":
+    PanelTecnico()
