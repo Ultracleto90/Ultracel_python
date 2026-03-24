@@ -156,6 +156,14 @@ class PanelTecnico:
         self.ventana.minsize(800, 500)
         self.ventana.resizable(True, True)
         self.ventana.configure(bg=COLOR_FONDO_APP)
+        self.ventana.geometry("1000x600") # Tamaño base
+        self.ventana.minsize(900, 600)
+        
+        # --- ABRIR MAXIMIZADO SIEMPRE ---
+        try:
+            self.ventana.state('zoomed')
+        except:
+            self.ventana.attributes('-zoomed', True)
 
         configurar_estilos_ttk()
 
@@ -322,28 +330,37 @@ class PanelTecnico:
     def cargar_pendientes(self):
         self.limpiar_panel()
 
-        #  Encabezado 
+        # --- Encabezado ---
         header = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_PANEL)
         header.pack(fill="x", padx=15, pady=(10, 5))
-        tk.Label(header, text="\U0001F4CB Dispositivos Pendientes",
-                 font=FUENTE_TITULO, bg=COLOR_FONDO_PANEL,
-                 fg=COLOR_PRIMARIO).pack(anchor="w")
-        tk.Label(header, text="Doble clic en una fila para ver los detalles completos",
-                 font=FUENTE_ETIQUETA, bg=COLOR_FONDO_PANEL,
-                 fg=COLOR_TEXTO_GRIS).pack(anchor="w")
+        tk.Label(header, text="\U0001F4CB Dispositivos Pendientes", font=FUENTE_TITULO, bg=COLOR_FONDO_PANEL, fg=COLOR_PRIMARIO).pack(anchor="w")
+        tk.Label(header, text="Doble clic en una fila para ver los detalles completos o generar diagnóstico.", font=FUENTE_ETIQUETA, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
 
-        tk.Frame(self.panel_dinamico, height=2, bg=COLOR_BORDE).pack(fill="x", padx=15, pady=(5, 10))
+        tk.Frame(self.panel_dinamico, height=2, bg=COLOR_BORDE).pack(fill="x", padx=15, pady=(5, 5))
+
+        # --- Leyenda de Colores (Semáforo) ---
+        legend_frame = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_PANEL)
+        legend_frame.pack(fill="x", padx=15, pady=(0, 10))
+        
+        tk.Label(legend_frame, text="Leyenda:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_OSCURO).pack(side="left", padx=(0, 10))
+        tk.Label(legend_frame, text="🟡 Recibido (Sin Diagnóstico)", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#d35400").pack(side="left", padx=10)
+        tk.Label(legend_frame, text="🔵 En Reparación (Diagnosticado)", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#0984e3").pack(side="left", padx=10)
+        tk.Label(legend_frame, text="🟠 Esperando Aprobación", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#e17055").pack(side="left", padx=10)
 
         # --- Treeview ---
         tree_frame = tk.Frame(self.panel_dinamico, bg=COLOR_BORDE, bd=0)
         tree_frame.pack(pady=0, padx=15, fill="both", expand=True)
 
-        self.tree = ttk.Treeview(tree_frame, columns=("ID", "Dispositivo", "Problema Reportado"), show="headings", height=15, style="Custom.Treeview")
+        # Agregamos la columna "Estado"
+        self.tree = ttk.Treeview(tree_frame, columns=("ID", "Dispositivo", "Estado", "Problema Reportado"), show="headings", height=15, style="Custom.Treeview")
         self.tree.heading("ID", text="ID Orden")
         self.tree.heading("Dispositivo", text="Dispositivo")
+        self.tree.heading("Estado", text="Estado Actual")
         self.tree.heading("Problema Reportado", text="Problema Reportado")
+        
         self.tree.column("ID", width=80, anchor="center")
         self.tree.column("Dispositivo", width=200)
+        self.tree.column("Estado", width=150, anchor="center")
         self.tree.column("Problema Reportado", width=350)
 
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview, style="Custom.Vertical.TScrollbar")
@@ -351,9 +368,15 @@ class PanelTecnico:
         scrollbar.pack(side="right", fill="y", padx=(0, 1), pady=1)
         self.tree.pack(fill="both", expand=True, padx=1, pady=1)
 
-        self.tree.tag_configure('evenrow', background=COLOR_FILA_PAR)
-        self.tree.tag_configure('oddrow', background=COLOR_FILA_IMPAR)
+        # --- Configuración de Colores por Estado ---
+        # Usamos colores pastel para que el texto negro siga siendo muy fácil de leer
+        self.tree.tag_configure('Recibido', background='#ffeaa7')             # Amarillo pastel
+        self.tree.tag_configure('En Reparación', background='#74b9ff')        # Azul pastel
+        self.tree.tag_configure('Esperando Aprobación', background='#fab1a0') # Salmón / Naranja
+        self.tree.tag_configure('En Diagnóstico', background='#81ecec')       # Turquesa pastel
+        self.tree.tag_configure('default', background=COLOR_FILA_PAR)
 
+        # --- Carga de Datos ---
         mi_taller_id = obtener_taller_id()
         if not mi_taller_id:
             return messagebox.showerror("Error", "No hay licencia activa.")
@@ -361,15 +384,27 @@ class PanelTecnico:
         for i in self.tree.get_children(): self.tree.delete(i)
 
         try:
-            url_api = "http://localhost/api/reparaciones/pendientes"
+            url_api = "http://www.ultracel.lat/api/reparaciones/pendientes"
             respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
             
             if respuesta.status_code == 200:
                 reparaciones = respuesta.json().get('reparaciones', [])
-                for idx, rep in enumerate(reparaciones):
-                    tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
-                    self.tree.insert("", "end", values=(rep.get('id_reparacion'), rep.get('dispositivo'), rep.get('problema_reportado')), tags=(tag,))
-        except:
+                for rep in reparaciones:
+                    # Obtenemos el estado; si no viene, le ponemos 'default'
+                    estado_real = rep.get('estado', 'default')
+                    
+                    # Verificamos si tenemos un color configurado para ese estado, si no, usamos el default
+                    tag_color = estado_real if estado_real in ['Recibido', 'En Reparación', 'Esperando Aprobación', 'En Diagnóstico'] else 'default'
+                    
+                    self.tree.insert("", "end", values=(
+                        rep.get('id_reparacion'), 
+                        rep.get('dispositivo'), 
+                        estado_real,  # Mostramos el estado en la columna nueva
+                        rep.get('problema_reportado')
+                    ), tags=(tag_color,))
+            else:
+                print(f"🚨 Error al cargar pendientes: {respuesta.status_code} - {respuesta.text}")
+        except requests.exceptions.ConnectionError:
             messagebox.showerror("Error", "Sin conexión al servidor.")
 
         # VINCULAMOS LA FUNCIÓN RESCATADA
@@ -384,7 +419,7 @@ class PanelTecnico:
 
         # Pedimos los detalles a Laravel
         try:
-            res = requests.post("http://localhost/api/reparaciones/detalles", json={"id_reparacion": id_reparacion})
+            res = requests.post("http://www.ultracel.lat/api/reparaciones/detalles", json={"id_reparacion": id_reparacion})
             if res.status_code == 200:
                 detalles = res.json().get('detalles', {})
             else:
@@ -392,45 +427,58 @@ class PanelTecnico:
         except:
             return messagebox.showerror("Error", "Sin conexión al servidor.")
 
-        ventana_detalles = tk.Toplevel(self.ventana)
-        ventana_detalles.title(f"Detalles de Reparacion #{id_reparacion}")
-        ventana_detalles.geometry("480x580")
-        ventana_detalles.configure(bg=COLOR_FONDO_SECCION)
-        ventana_detalles.resizable(False, False)
+        # --- ADIÓS POPUP, HOLA PANEL DINÁMICO ---
+        self.limpiar_panel()
 
-        top_bar = tk.Frame(ventana_detalles, bg=COLOR_PRIMARIO, height=50)
+        contenedor = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_SECCION)
+        contenedor.pack(fill="both", expand=True)
+
+        # --- ENCABEZADO Y BOTÓN DE REGRESAR ---
+        top_bar = tk.Frame(contenedor, bg=COLOR_PRIMARIO, height=50)
         top_bar.pack(fill="x")
         top_bar.pack_propagate(False)
-        tk.Label(top_bar, text=f"\U0001F527  Reparacion #{id_reparacion}", font=FUENTE_SUBTITULO, bg=COLOR_PRIMARIO, fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=20, pady=10)
 
-        main_frame = tk.Frame(ventana_detalles, bg=COLOR_FONDO_SECCION, padx=25, pady=15)
+        # OJO: Cambia 'self.mostrar_vista_principal' por la función que dibuja tu tabla de reparaciones
+        tk.Button(top_bar, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#c0392b", fg="white",
+                  relief="flat", command=self.cargar_pendientes, padx=10).pack(side="left", padx=10, pady=10)
+
+        tk.Label(top_bar, text=f"\U0001F527 Diagnóstico y Reparación #{id_reparacion}", font=FUENTE_SUBTITULO, 
+                 bg=COLOR_PRIMARIO, fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=15, pady=10)
+
+        # --- CONTENEDOR CENTRAL CON MÁRGENES ---
+        main_frame = tk.Frame(contenedor, bg=COLOR_FONDO_SECCION, padx=60, pady=20)
         main_frame.pack(fill="both", expand=True)
 
         def marcar_como_terminado():
             if messagebox.askyesno("Confirmar", "¿Estás seguro de que has terminado esta reparación?"):
                 try:
-                    res_up = requests.post("http://localhost/api/reparaciones/terminar", json={"id_reparacion": id_reparacion})
+                    res_up = requests.post("http://www.ultracel.lat/api/reparaciones/terminar", json={"id_reparacion": id_reparacion})
                     if res_up.status_code == 200:
-                        messagebox.showinfo("Exito", f"Reparacion #{id_reparacion} marcada como 'Reparada'.", parent=ventana_detalles)
-                        ventana_detalles.destroy()
-                        self.cargar_pendientes()
+                        messagebox.showinfo("Éxito", f"Reparación #{id_reparacion} marcada como 'Reparada'.")
+                        # ¡CORRECCIÓN 1: Llamamos a la función correcta!
+                        self.cargar_pendientes() 
                     else:
                         messagebox.showerror("Error", "No se pudo actualizar.")
-                except:
+                # ¡CORRECCIÓN 2: Le decimos que solo atrape errores reales de conexión!
+                except requests.exceptions.ConnectionError: 
                     messagebox.showerror("Error", "Sin conexión al servidor.")
 
         def crear_seccion(parent, titulo):
             sec_frame = tk.Frame(parent, bg=COLOR_FONDO_SECCION)
-            sec_frame.pack(fill="x", pady=(14, 0))
+            sec_frame.pack(fill="x", pady=(20, 0))
             tk.Label(sec_frame, text=titulo, font=FUENTE_SUBTITULO, bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).pack(anchor="w")
-            tk.Frame(parent, height=2, bg=COLOR_SECUNDARIO).pack(fill="x", pady=(3, 6))
+            tk.Frame(parent, height=2, bg=COLOR_SECUNDARIO).pack(fill="x", pady=(5, 10))
 
         def crear_detalle(parent, campo, valor):
             frame = tk.Frame(parent, bg=COLOR_FONDO_SECCION)
-            frame.pack(fill="x", pady=2)
-            tk.Label(frame, text=f"{campo}:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).pack(side="left")
-            tk.Label(frame, text=valor if valor else 'N/A', font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS, wraplength=300, justify="left").pack(side="left", padx=8)
+            frame.pack(fill="x", pady=4)
+            # Le agregamos un width fijo al título para que todos se alineen como una tabla bonita
+            tk.Label(frame, text=f"{campo}:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, 
+                     fg=COLOR_TEXTO_OSCURO, width=20, anchor="w").pack(side="left")
+            tk.Label(frame, text=valor if valor else 'N/A', font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, 
+                     fg=COLOR_TEXTO_GRIS, wraplength=600, justify="left").pack(side="left", padx=8)
 
+        # --- DIBUJAMOS LOS DATOS ---
         crear_seccion(main_frame, "Datos del Equipo")
         crear_detalle(main_frame, "Dispositivo", f"{detalles.get('marca')} {detalles.get('modelo')}")
         crear_detalle(main_frame, "Tipo", detalles.get('tipo_equipo'))
@@ -439,16 +487,20 @@ class PanelTecnico:
 
         crear_seccion(main_frame, "Datos del Cliente")
         crear_detalle(main_frame, "Nombre", f"{detalles.get('nombre')} {detalles.get('apellidos')}")
-        crear_detalle(main_frame, "Telefono", detalles.get('telefono'))
+        crear_detalle(main_frame, "Teléfono", detalles.get('telefono'))
 
-        crear_seccion(main_frame, "Detalles de la Reparacion")
+        crear_seccion(main_frame, "Detalles de la Reparación")
         crear_detalle(main_frame, "Problema Reportado", detalles.get('problema_reportado'))
-        crear_detalle(main_frame, "Tecnico Asignado", detalles.get('tecnico_asignado', 'Sin asignar'))
+        crear_detalle(main_frame, "Técnico Asignado", detalles.get('tecnico_asignado', 'Sin asignar'))
         crear_detalle(main_frame, "Estado Actual", detalles.get('estado'))
 
+        # --- BOTÓN DE ACCIÓN ---
         if detalles.get('estado') not in ['Reparado', 'Entregado', 'No Reparado']:
-            btn = crear_boton(main_frame, "Terminar Reparacion", marcar_como_terminado, COLOR_EXITO, height=2)
-            btn.pack(fill="x", pady=(25, 0))
+            btn_frame = tk.Frame(main_frame, bg=COLOR_FONDO_SECCION)
+            btn_frame.pack(fill="x", pady=(40, 0))
+            
+            btn = crear_boton(btn_frame, "✔ TERMINAR REPARACIÓN", marcar_como_terminado, COLOR_EXITO, height=2)
+            btn.pack(side="left")
 
     def cargar_inventario(self):
         self.limpiar_panel()
@@ -511,7 +563,7 @@ class PanelTecnico:
                 return
 
             try:
-                url_api = "http://localhost/api/inventario/buscar"
+                url_api = "http://www.ultracel.lat/api/inventario/buscar"
                 payload = {
                     "taller_id": mi_taller_id,
                     "termino": termino_busqueda
@@ -534,8 +586,11 @@ class PanelTecnico:
                             precio_formato, 
                             prod.get('ubicacion_almacen')
                         ), tags=(tag,))
+                else:
+                    print(f"🚨 ERROR {respuesta.status_code}: {respuesta.text}")
             except requests.exceptions.ConnectionError:
                 pass # Usamos pass en lugar de messagebox para evitar spam si escriben muy rápido
+                
 
         search_var.trace_add("write", actualizar_lista_inventario)
         actualizar_lista_inventario()
@@ -580,7 +635,7 @@ class PanelTecnico:
             return messagebox.showerror("Error", "No hay licencia activa.")
 
         try:
-            url_api = "http://localhost/api/reparaciones/pendientes"
+            url_api = "http://www.ultracel.lat/api/reparaciones/pendientes"
             respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
             
             if respuesta.status_code == 200:
@@ -608,34 +663,21 @@ class PanelTecnico:
             col_frame.grid_columnconfigure(0, weight=1)
             col_frame.grid_columnconfigure(1, weight=1)
 
-            # --- COLUMNA IZQUIERDA ---
+            # ==========================================
+            # --- COLUMNA IZQUIERDA (DIAGNÓSTICO Y TOTALES) ---
+            # ==========================================
             col_izquierda = tk.Frame(col_frame, bg=COLOR_FONDO_PANEL, padx=5)
             col_izquierda.grid(row=0, column=0, sticky="nsew")
 
-            tk.Label(col_izquierda, text="Diagnostico Tecnico:",
-                     font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL,
-                     fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(0, 4))
-            diag_frame, diagnostico_text = crear_text_estilizado(col_izquierda, height=5)
+            tk.Label(col_izquierda, text="Diagnóstico Técnico:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(0, 4))
+            diag_frame, diagnostico_text = crear_text_estilizado(col_izquierda, height=4)
             diag_frame.pack(fill="x", pady=(0, 10))
 
-            presupuesto_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_PANEL)
-            presupuesto_frame.pack(fill="x", pady=(0, 10))
-            tk.Label(presupuesto_frame, text="Presupuesto Total $:",
-                     font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL,
-                     fg=COLOR_TEXTO_OSCURO).pack(side="left")
-            pres_frame, presupuesto_entry = crear_entry_estilizado(presupuesto_frame, width=15)
-            pres_frame.pack(side="left", padx=(8, 0))
-
-            tk.Label(col_izquierda, text="Piezas a Utilizar:",
-                     font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL,
-                     fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(8, 4))
+            tk.Label(col_izquierda, text="Piezas a Utilizar:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(5, 4))
 
             piezas_container = tk.Frame(col_izquierda, bg=COLOR_BORDE)
             piezas_container.pack(fill="x", expand=True)
-            tree_piezas_usadas = ttk.Treeview(piezas_container,
-                                              columns=("ID", "Nombre", "Precio"),
-                                              show="headings", height=5,
-                                              style="Custom.Treeview")
+            tree_piezas_usadas = ttk.Treeview(piezas_container, columns=("ID", "Nombre", "Precio"), show="headings", height=4, style="Custom.Treeview")
             tree_piezas_usadas.heading("ID", text="ID")
             tree_piezas_usadas.heading("Nombre", text="Nombre")
             tree_piezas_usadas.heading("Precio", text="Precio")
@@ -644,20 +686,77 @@ class PanelTecnico:
             tree_piezas_usadas.column("Precio", width=80)
             tree_piezas_usadas.pack(fill="x", expand=True, padx=1, pady=1)
 
-            # --- COLUMNA DERECHA ---
+            # --- VARIABLES REACTIVAS PARA LOS PRECIOS ---
+            costo_piezas_var = tk.StringVar(value="0.00")
+            mano_obra_var = tk.StringVar(value="200.00") # Costo base modificable
+            total_var = tk.StringVar(value="200.00")
+
+            def recalcular_presupuesto(*args):
+                total_piezas = 0.0
+                for item in tree_piezas_usadas.get_children():
+                    valores = tree_piezas_usadas.item(item, 'values')
+                    try:
+                        precio_str = str(valores[2]).replace('$', '').replace(',', '')
+                        total_piezas += float(precio_str)
+                    except: pass
+                
+                costo_piezas_var.set(f"{total_piezas:.2f}")
+                
+                # Intentamos leer la mano de obra; si está vacía o tiene letras, usamos 0
+                try:
+                    mo = float(mano_obra_var.get().replace('$', '').replace(',', ''))
+                except ValueError:
+                    mo = 0.0
+                    
+                total_var.set(f"{(total_piezas + mo):.2f}")
+
+            # Esta línea hace que el total cambie en tiempo real si el técnico edita la mano de obra
+            mano_obra_var.trace_add("write", recalcular_presupuesto)
+
+            def anadir_pieza():
+                item_sel = tree_inventario.selection()
+                if not item_sel: return
+                pieza_data = tree_inventario.item(item_sel[0], 'values')
+                tree_piezas_usadas.insert("", "end", values=(pieza_data[0], pieza_data[1], f"${float(pieza_data[3]):.2f}"))
+                recalcular_presupuesto() 
+            
+            def quitar_pieza():
+                item_sel = tree_piezas_usadas.selection()
+                if not item_sel: return
+                tree_piezas_usadas.delete(item_sel[0])
+                recalcular_presupuesto() 
+
+            # Botones de las piezas
+            botones_piezas_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_PANEL)
+            botones_piezas_frame.pack(fill="x", pady=5)
+            crear_boton(botones_piezas_frame, "⬅ Añadir Pieza", anadir_pieza, COLOR_SECUNDARIO, fuente=FUENTE_CUERPO_BOLD).pack(side="left", padx=5)
+            crear_boton(botones_piezas_frame, "Quitar Pieza ➡", quitar_pieza, COLOR_PELIGRO, fuente=FUENTE_CUERPO_BOLD).pack(side="left", padx=5)
+
+            # --- CUADRO DE TOTALES (DESGLOSE) ---
+            totales_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_SECCION, padx=15, pady=10, highlightthickness=1, highlightbackground=COLOR_BORDE)
+            totales_frame.pack(fill="x", pady=10)
+            
+            # Usamos grid dentro del recuadro para alinearlos perfecto
+            tk.Label(totales_frame, text="Costo de Piezas $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS).grid(row=0, column=0, sticky="e", pady=2)
+            tk.Entry(totales_frame, textvariable=costo_piezas_var, font=FUENTE_CUERPO, state="readonly", width=12, justify="right").grid(row=0, column=1, padx=10, pady=2)
+
+            tk.Label(totales_frame, text="Mano de Obra $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).grid(row=1, column=0, sticky="e", pady=2)
+            tk.Entry(totales_frame, textvariable=mano_obra_var, font=FUENTE_CUERPO, width=12, justify="right", bg="#f8f9fa").grid(row=1, column=1, padx=10, pady=2)
+
+            tk.Label(totales_frame, text="TOTAL A COBRAR $:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).grid(row=2, column=0, sticky="e", pady=(8,2))
+            tk.Entry(totales_frame, textvariable=total_var, font=FUENTE_SUBTITULO, state="readonly", width=10, justify="right").grid(row=2, column=1, padx=10, pady=(8,2))
+
+            # ==========================================
+            # --- COLUMNA DERECHA (INVENTARIO) ---
+            # ==========================================
             col_derecha = tk.Frame(col_frame, bg=COLOR_FONDO_PANEL, padx=5)
             col_derecha.grid(row=0, column=1, sticky="nsew")
 
-            tk.Label(col_derecha, text="Inventario Disponible:",
-                     font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL,
-                     fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(0, 4))
+            tk.Label(col_derecha, text="Inventario Disponible:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_OSCURO).pack(anchor="w", pady=(0, 4))
 
             inv_container = tk.Frame(col_derecha, bg=COLOR_BORDE)
             inv_container.pack(fill="x", expand=True)
-            tree_inventario = ttk.Treeview(inv_container,
-                                           columns=("ID", "Nombre", "Stock", "Precio"),
-                                           show="headings", height=8,
-                                           style="Custom.Treeview")
+            tree_inventario = ttk.Treeview(inv_container, columns=("ID", "Nombre", "Stock", "Precio"), show="headings", height=12, style="Custom.Treeview")
             tree_inventario.heading("ID", text="ID")
             tree_inventario.heading("Nombre", text="Nombre")
             tree_inventario.heading("Stock", text="Stock")
@@ -668,82 +767,67 @@ class PanelTecnico:
             tree_inventario.column("Precio", width=80)
             tree_inventario.pack(fill="x", expand=True, padx=1, pady=1)
 
-            # --- LLAMADA API: Cargar inventario disponible ---
+            # Cargar inventario desde Laravel
             mi_taller_id = obtener_taller_id()
             if mi_taller_id:
                 try:
-                    res_inv = requests.post("http://localhost/api/diagnostico/inventario", json={"taller_id": mi_taller_id})
+                    res_inv = requests.post("http://www.ultracel.lat/api/diagnostico/inventario", json={"taller_id": mi_taller_id})
                     if res_inv.status_code == 200:
                         inventario = res_inv.json().get('inventario', [])
                         for prod in inventario:
-                            tree_inventario.insert("", "end", values=(
-                                prod.get('id_producto'), 
-                                prod.get('nombre_producto'), 
-                                prod.get('stock'), 
-                                prod.get('precio_venta')
-                            ))
+                            tree_inventario.insert("", "end", values=(prod.get('id_producto'), prod.get('nombre_producto'), prod.get('stock'), prod.get('precio_venta')))
+                    else:
+                        print(f"🚨 ERROR EN DIAGNÓSTICO: {res_inv.status_code} - {res_inv.text}")
                 except requests.exceptions.ConnectionError:
-                    messagebox.showerror("Error", "No se pudo cargar el inventario.")
+                    pass
 
-            # --- Botones de acción ---
-            botones_grid_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_PANEL)
-            botones_grid_frame.pack(fill="x", pady=10)
-            botones_grid_frame.grid_columnconfigure(1, weight=1)
-
-            def anadir_pieza():
-                item_sel = tree_inventario.selection()
-                if not item_sel: return
-                pieza_data = tree_inventario.item(item_sel[0], 'values')
-                # Insertamos ID, Nombre y Precio (ignorando el stock)
-                tree_piezas_usadas.insert("", "end", values=(pieza_data[0], pieza_data[1], pieza_data[3]))
-            
-            def quitar_pieza():
-                item_sel = tree_piezas_usadas.selection()
-                if not item_sel: return
-                tree_piezas_usadas.delete(item_sel[0])
-
+            # ==========================================
+            # --- BOTÓN GUARDAR FINAL ---
+            # ==========================================
             def guardar_diagnostico():
                 diagnostico = diagnostico_text.get("1.0", "end-1c")
-                presupuesto = presupuesto_entry.get()
+                presupuesto_final = total_var.get() 
                 
-                # Formateamos las piezas para enviarlas a Laravel
                 piezas_a_usar = []
                 for item in tree_piezas_usadas.get_children():
                     val = tree_piezas_usadas.item(item, 'values')
+                    
+                    # MAGIA AQUÍ: Le quitamos el signo de dólar al precio antes de enviarlo
+                    precio_limpio = str(val[2]).replace('$', '').replace(',', '')
+                    
                     piezas_a_usar.append({
-                        "id_producto": val[0],
-                        "precio": val[2]
+                        "id_producto": val[0], 
+                        "precio": float(precio_limpio)
                     })
 
-                if not diagnostico or not presupuesto or not piezas_a_usar:
-                    return messagebox.showwarning("Datos Incompletos", "Debes rellenar el diagnóstico, el presupuesto y seleccionar al menos una pieza.")
+                # Validamos que el presupuesto sea un número mayor a cero
+                try:
+                    if not diagnostico or float(presupuesto_final) <= 0:
+                        return messagebox.showwarning("Datos Incompletos", "Debes rellenar el diagnóstico y asegurar un presupuesto válido.")
+                except ValueError:
+                    return messagebox.showwarning("Error", "El presupuesto contiene caracteres inválidos.")
 
                 if messagebox.askyesno("Confirmar", "¿Guardar este diagnóstico y presupuesto?"):
                     try:
                         payload = {
                             "id_reparacion": id_reparacion_seleccionada,
                             "diagnostico": diagnostico,
-                            "presupuesto": presupuesto,
+                            "presupuesto": float(presupuesto_final),
                             "piezas": piezas_a_usar
                         }
-                        res_save = requests.post("http://localhost/api/diagnostico/guardar", json=payload)
+                        res_save = requests.post("http://www.ultracel.lat/api/diagnostico/guardar", json=payload)
                         
                         if res_save.status_code == 200:
                             messagebox.showinfo("Éxito", res_save.json().get('message', 'Diagnóstico guardado.'))
-                            self.cargar_pendientes()
+                            self.cargar_pendientes() # Regresa a la tabla principal
                         else:
-                            messagebox.showerror("Error", "No se pudo guardar el diagnóstico.")
+                            # ¡El chismoso para saber si Laravel sigue enojado!
+                            print(f"🚨 ERROR AL GUARDAR DIAGNÓSTICO: {res_save.status_code} - {res_save.text}")
+                            messagebox.showerror("Error", "No se pudo guardar el diagnóstico. Revisa la terminal negra.")
                     except requests.exceptions.ConnectionError:
                         messagebox.showerror("Error", "Sin conexión al servidor.")
 
-            btn_anadir = crear_boton(botones_grid_frame, "Anadir Pieza ->", anadir_pieza, COLOR_SECUNDARIO, fuente=FUENTE_CUERPO_BOLD)
-            btn_anadir.grid(row=0, column=0, padx=3, pady=5)
-
-            btn_quitar = crear_boton(botones_grid_frame, "<- Quitar Pieza", quitar_pieza, COLOR_PELIGRO, fuente=FUENTE_CUERPO_BOLD)
-            btn_quitar.grid(row=0, column=2, padx=3, pady=5)
-
-            btn_guardar_diag = crear_boton(botones_grid_frame, "Guardar Diagnostico", guardar_diagnostico, COLOR_EXITO, fuente=FUENTE_CUERPO_BOLD)
-            btn_guardar_diag.grid(row=0, column=3, padx=3, pady=5, sticky="ew")
+            crear_boton(col_izquierda, "💾 Guardar Diagnóstico y Presupuesto", guardar_diagnostico, COLOR_EXITO, fuente=FUENTE_SUBTITULO, height=2).pack(fill="x", pady=(15, 0))
 
         combo_reparaciones.bind("<<ComboboxSelected>>", on_reparacion_seleccionada)
 
@@ -840,7 +924,7 @@ class PanelTecnico:
                 tree_solicitudes.delete(i)
 
             try:
-                res = requests.post("http://localhost/api/material/listar", json={"id_tecnico": self.id_tecnico_logueado})
+                res = requests.post("http://www.ultracel.lat/api/material/listar", json={"id_tecnico": self.id_tecnico_logueado})
                 if res.status_code == 200:
                     solicitudes = res.json().get('solicitudes', [])
                     for idx, s in enumerate(solicitudes):
@@ -874,7 +958,7 @@ class PanelTecnico:
                     "cantidad": int(cantidad),
                     "descripcion": descripcion
                 }
-                res = requests.post("http://localhost/api/material/crear", json=payload)
+                res = requests.post("http://www.ultracel.lat/api/material/crear", json=payload)
                 
                 if res.status_code == 200:
                     messagebox.showinfo("Éxito", "Tu solicitud de material ha sido enviada al administrador.")
@@ -913,4 +997,5 @@ class PanelTecnico:
 
 
 if __name__ == "__main__":
-    PanelTecnico()
+    id_logueado = int(sys.argv[1]) if len(sys.argv) > 1 else 2
+    PanelTecnico(id_tecnico=id_logueado)

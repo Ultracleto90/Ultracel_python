@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 import pandas as pd
 import requests 
 import json
-import reporte_corte
+
 
 # --- PALETA DE COLORES "ENTERPRISE" ---
 COLOR_BARRA_LATERAL = "#001f3f"  # Azul Marino Oscuro
@@ -17,6 +17,8 @@ COLOR_PRIMARIO      = "#005187"  # Azul Corporativo
 COLOR_ACCENTO       = "#00a8ff"  # Azul Brillante
 COLOR_TEXTO         = "#2c3e50"  # Gris Oscuro
 COLOR_BLANCO        = "#ffffff"
+COLOR_TEXTO_GRIS    = "#8395A7"  # Texto secundario para el buscador
+COLOR_BORDE         = "#DFE6E9"
 
 def obtener_taller_id():
     """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
@@ -38,9 +40,26 @@ class PanelAdministrador:
         self.id_admin_logueado = id_admin if id_admin else 1
         self.ventana = tk.Tk()
         self.ventana.title("Ultracel Enterprise | Panel de Control")
-        self.ventana.geometry("1150x750")
-        self.ventana.resizable(False, False)
+        
+        # 1. Configuramos el color de fondo primero
         self.ventana.configure(bg=COLOR_CUERPO)
+
+        # 2. Establecemos un tamaño MÍNIMO para que no se rompa el diseño en pantallas chicas
+        self.ventana.minsize(1024, 720)
+        
+        # 3. LA MAGIA: Intentar abrir maximizado directamente
+        # En Windows usa 'zoomed', en Linux/Mac usa los attributes
+        try:
+            self.ventana.state('zoomed') 
+        except:
+            try:
+                self.ventana.attributes('-zoomed', True)
+            except:
+                # Si todo falla (como en algunos gestores de ventana), 
+                # usamos el tamaño máximo de la pantalla disponible
+                width = self.ventana.winfo_screenwidth()
+                height = self.ventana.winfo_screenheight()
+                self.ventana.geometry(f"{width}x{height}+0+0")
 
         # Contenedores principales
         self.sidebar = tk.Frame(self.ventana, bg=COLOR_BARRA_LATERAL, width=260)
@@ -51,9 +70,170 @@ class PanelAdministrador:
         self.main_content.pack(side="right", fill="both", expand=True)
 
         self.setup_sidebar()
-        self.crear_panel_principal() # Carga el dashboard por defecto
+        self.crear_panel_principal() 
 
         self.ventana.mainloop()
+
+
+    def mostrar_corte_caja(self):
+        # 1. Limpiamos el panel principal
+        for w in self.main_content.winfo_children(): 
+            w.destroy()
+
+        # --- Encabezado ---
+        header = tk.Frame(self.main_content, bg=COLOR_BLANCO, height=80)
+        header.pack(fill="x")
+        
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#c0392b", fg="white",
+                  relief="flat", command=self.crear_panel_principal, padx=10).pack(side="left", padx=20, pady=20)
+                  
+        tk.Label(header, text="Historial de Ventas y Corte de Caja", font=("Segoe UI Semilight", 22), 
+                 bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(side="left", pady=20)
+
+        # --- Contenedor Principal (2 Columnas) ---
+        main_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        main_frame.pack(fill="both", expand=True, padx=40, pady=20)
+        main_frame.grid_columnconfigure(0, weight=3)
+        main_frame.grid_columnconfigure(1, weight=2)
+        main_frame.grid_rowconfigure(0, weight=1)
+
+        # --- COLUMNA IZQUIERDA: REGISTRO GENERAL ---
+        col_izq = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground="#d1d9e0")
+        col_izq.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
+        # --- BUSCADOR EN VIVO ---
+        filtro_frame = tk.Frame(col_izq, bg=COLOR_BLANCO)
+        filtro_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        tk.Label(filtro_frame, text="🔍 Buscar (Fecha, Cliente o Vendedor):", font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(side="left")
+        busqueda_var = tk.StringVar()
+        tk.Entry(filtro_frame, textvariable=busqueda_var, font=("Segoe UI", 10), width=30, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).pack(side="left", padx=10, ipady=3)
+
+        # --- MOTOR DE ORDENAMIENTO AL HACER CLIC EN COLUMNAS ---
+        def ordenar_columna(tree, col, reverse):
+            lista = [(tree.set(k, col), k) for k in tree.get_children('')]
+            
+            # Intentamos ordenar como números (para los totales con $)
+            try:
+                lista.sort(key=lambda t: float(t[0].replace('$', '').replace(',', '')), reverse=reverse)
+            except ValueError:
+                # Si falla, es porque es texto o fecha, entonces ordenamos alfabéticamente
+                lista.sort(reverse=reverse)
+                
+            for index, (val, k) in enumerate(lista):
+                tree.move(k, '', index)
+                
+            # Cambiamos la función para que el próximo clic ordene al revés
+            tree.heading(col, command=lambda: ordenar_columna(tree, col, not reverse))
+        tk.Label(col_izq, text="REGISTRO GENERAL DE VENTAS", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=10)
+        
+        tree_frame_v = tk.Frame(col_izq, bg=COLOR_BLANCO)
+        tree_frame_v.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        # OJO: Si tienes el Custom.Treeview importado úsalo, si no, quita el style=...
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=40)
+        
+        tree_ventas = ttk.Treeview(tree_frame_v, columns=("ID", "Fecha", "Cliente", "Vendedor", "Total"), show="headings", style="Treeview")
+        # Conectamos las columnas al motor de ordenamiento
+        tree_ventas.heading("ID", text="ID Venta", command=lambda: ordenar_columna(tree_ventas, "ID", False))
+        tree_ventas.column("ID", width=60, anchor="center")
+        
+        tree_ventas.heading("Fecha", text="Fecha", command=lambda: ordenar_columna(tree_ventas, "Fecha", False))
+        tree_ventas.column("Fecha", width=120, anchor="center")
+        
+        tree_ventas.heading("Cliente", text="Cliente", command=lambda: ordenar_columna(tree_ventas, "Cliente", False))
+        tree_ventas.column("Cliente", width=160)
+        
+        tree_ventas.heading("Vendedor", text="Vendedor", command=lambda: ordenar_columna(tree_ventas, "Vendedor", False))
+        tree_ventas.column("Vendedor", width=120)
+        
+        tree_ventas.heading("Total", text="Total", command=lambda: ordenar_columna(tree_ventas, "Total", False))
+        tree_ventas.column("Total", width=90, anchor="e")
+        
+        scroll_v = ttk.Scrollbar(tree_frame_v, orient="vertical", command=tree_ventas.yview)
+        tree_ventas.configure(yscrollcommand=scroll_v.set)
+        scroll_v.pack(side="right", fill="y")
+        tree_ventas.pack(side="left", fill="both", expand=True)
+
+        # --- COLUMNA DERECHA: DETALLES ---
+        col_der = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground="#d1d9e0")
+        col_der.grid(row=0, column=1, sticky="nsew")
+        
+        tk.Label(col_der, text="DETALLES DE LA VENTA", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=10)
+        
+        tree_frame_d = tk.Frame(col_der, bg=COLOR_BLANCO)
+        tree_frame_d.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        tree_detalles = ttk.Treeview(tree_frame_d, columns=("Cant", "Desc", "P. Unit", "Subtotal"), show="headings")
+        tree_detalles.heading("Cant", text="Cant."); tree_detalles.column("Cant", width=40, anchor="center")
+        
+        # ¡AQUI ESTABA EL ERROR VISUAL! Hicimos la descripcion mucho más ancha
+        tree_detalles.heading("Desc", text="Descripción"); tree_detalles.column("Desc", width=200) 
+        
+        tree_detalles.heading("P. Unit", text="P. Unit."); tree_detalles.column("P. Unit", width=80, anchor="e")
+        tree_detalles.heading("Subtotal", text="Subtotal"); tree_detalles.column("Subtotal", width=80, anchor="e")
+        
+        scroll_d = ttk.Scrollbar(tree_frame_d, orient="vertical", command=tree_detalles.yview)
+        tree_detalles.configure(yscrollcommand=scroll_d.set)
+        scroll_d.pack(side="right", fill="y")
+        tree_detalles.pack(side="left", fill="both", expand=True)
+
+        ventas_originales = []
+        # --- LÓGICA DE CARGA Y CÁLCULOS SEGUROS ---
+        def cargar_datos():
+            ventas_originales.clear()
+            mi_taller_id = obtener_taller_id() 
+            if not mi_taller_id: return
+            
+            try:
+                res = requests.post("http://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
+                if res.status_code == 200:
+                    for v in res.json().get('ventas', []):
+                        monto_limpio = float(v['monto_total'])
+                        # Guardamos en nuestra lista de respaldo
+                        ventas_originales.append((v['id_venta'], v['fecha'], v['cliente'], v['vendedor'], f"${monto_limpio:,.2f}"))
+                    
+                    actualizar_tabla() # Llenamos la tabla por primera vez
+            except Exception as e:
+                print(f"Error cargando ventas: {e}")
+
+        def actualizar_tabla(*args):
+            for i in tree_ventas.get_children(): tree_ventas.delete(i)
+            termino = busqueda_var.get().lower()
+            
+            for v in ventas_originales:
+                # Buscamos coincidencias en cualquier columna (fecha, cliente, vendedor, etc.)
+                if termino in str(v[0]).lower() or termino in v[1].lower() or termino in v[2].lower() or termino in v[3].lower():
+                    tree_ventas.insert("", "end", values=v)
+
+        # Hacemos que la tabla se actualice cada vez que se escribe en el buscador
+        busqueda_var.trace_add("write", actualizar_tabla)
+
+        def mostrar_detalles_venta(event):
+            sel = tree_ventas.selection()
+            if not sel: return
+            id_venta = tree_ventas.item(sel[0], 'values')[0]
+            
+            for i in tree_detalles.get_children(): tree_detalles.delete(i)
+            
+            try:
+                res = requests.post("http://www.ultracel.lat/api/pos/detalles-venta", json={"id_venta": id_venta})
+                if res.status_code == 200:
+                    for d in res.json().get('detalles', []):
+                        # Parche matemático para evitar el crash de strings
+                        cantidad = int(d['cantidad'])
+                        precio_unit = float(d['precio_unitario'])
+                        subtotal = cantidad * precio_unit
+                        
+                        tree_detalles.insert("", "end", values=(
+                            cantidad, d['descripcion_linea'],
+                            f"${precio_unit:.2f}", f"${subtotal:.2f}"
+                        ))
+            except Exception as e:
+                print(f"Error cargando detalles: {e}")
+
+        tree_ventas.bind("<<TreeviewSelect>>", mostrar_detalles_venta)
+        cargar_datos()
 
     
 
@@ -124,7 +304,7 @@ class PanelAdministrador:
         
         tk.Button(card, text="EJECUTAR CORTE", font=("Segoe UI", 10, "bold"), bg=COLOR_ACCENTO, 
                   fg="white", relief="flat", padx=20, cursor="hand2", 
-                  command=reporte_corte.ventana_corte_caja).pack(pady=20)
+                  command=self.mostrar_corte_caja).pack(pady=20)
 
     # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
     def admin_usuarios(self):
@@ -162,7 +342,7 @@ class PanelAdministrador:
 
             try:
                 # 2. Le pedimos a Laravel la lista de empleados de este taller
-                url_api = "http://localhost/api/empleados"
+                url_api = "http://www.ultracel.lat/api/empleados"
                 respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
                 
                 if respuesta.status_code == 200:
@@ -205,30 +385,40 @@ class PanelAdministrador:
 
     # --- 3. MODAL: EDITAR USUARIO ---
     # --- 3. MODAL: EDITAR USUARIO ---
+    # --- 3. MODAL: EDITAR USUARIO ---
     def editar_usuario_modal(self, id_u):
         # 1. Obtenemos los datos del usuario desde Laravel
         try:
-            res = requests.post("http://localhost/api/empleado/ver", json={"id": id_u})
+            res = requests.post("http://www.ultracel.lat/api/empleado/ver", json={"id": id_u})
             if res.status_code != 200:
                 return messagebox.showerror("Error", "No se pudo cargar el usuario.")
             u = res.json().get('empleado', {})
         except requests.exceptions.ConnectionError:
             return messagebox.showerror("Error", "Sin conexión al servidor.")
 
-        ventana_edit = tk.Toplevel(self.ventana)
-        ventana_edit.title("Editar Perfil de Usuario")
-        ventana_edit.geometry("400x600")
-        ventana_edit.configure(bg=COLOR_BLANCO)
-        ventana_edit.grab_set()
+        # --- ADIÓS TOPLEVEL, HOLA PANEL DINÁMICO ---
+        # Limpiamos el área de trabajo (Usando la lógica correcta del Administrador)
+        for w in self.main_content.winfo_children(): w.destroy()
+        
+        # Usamos main_content en lugar de panel_dinamico
+        contenedor = tk.Frame(self.main_content, bg=COLOR_BLANCO)
+        contenedor.pack(fill="both", expand=True) 
 
-        tk.Label(ventana_edit, text="DETALLES DEL USUARIO", font=("Segoe UI", 14, "bold"), 
-                 bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=25)
+        # --- ENCABEZADO Y BOTÓN DE REGRESAR ---
+        header = tk.Frame(contenedor, bg=COLOR_BLANCO)
+        header.pack(fill="x", padx=40, pady=(30, 10))
+        
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white", 
+                  relief="flat", command=self.admin_usuarios, padx=15).pack(side="left")
+        
+        tk.Label(header, text="EDITAR PERFIL DE USUARIO", font=("Segoe UI", 18, "bold"), 
+                 bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(side="left", padx=20)
 
-        form = tk.Frame(ventana_edit, bg=COLOR_BLANCO, padx=40)
-        form.pack(fill="both")
+        # --- CONTENEDOR CENTRAL DEL FORMULARIO ---
+        form = tk.Frame(contenedor, bg=COLOR_BLANCO)
+        form.pack(fill="x", padx=100, pady=20) 
 
         entries = {}
-        # Mapeamos a los nombres de la BD de Laravel (email, name)
         campos = {
             'email': ('Usuario Login (Email):', u.get('email', '')), 
             'name': ('Nombre Completo:', u.get('name', '')), 
@@ -236,25 +426,35 @@ class PanelAdministrador:
         }
         
         for key, (lbl, val) in campos.items():
-            tk.Label(form, text=lbl, bg=COLOR_BLANCO, font=("Segoe UI", 9, "bold"), fg="#666").pack(anchor="w")
-            e = tk.Entry(form, font=("Segoe UI", 11), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
+            tk.Label(form, text=lbl, bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#666").pack(anchor="w")
+            e = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
             
-            # --- EL PARCHE ANTI-BERRINCHES DE TKINTER ---
-            # Si la base de datos manda un None, lo convertimos a texto vacío ("")
+            # Parche anti-berrinches
             texto_seguro = val if val is not None else ""
             e.insert(0, texto_seguro)
-            # --------------------------------------------
             
-            e.pack(fill="x", pady=(5, 12), ipady=5)
+            e.pack(fill="x", pady=(5, 15), ipady=8)
             entries[key] = e
 
-        tk.Label(form, text="Rol:", bg=COLOR_BLANCO, font=("Segoe UI", 9, "bold"), fg="#666").pack(anchor="w")
+        # --- CAMPO DE CONTRASEÑA NUEVA ---
+        tk.Label(form, text="Nueva Contraseña (Dejar en blanco para conservar la actual):", 
+                 bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#e74c3c").pack(anchor="w", pady=(10, 0))
+        entry_pass = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9", show="*")
+        entry_pass.pack(fill="x", pady=(5, 15), ipady=8)
+
+        # --- ROLES Y PERMISOS ---
+        roles_frame = tk.Frame(form, bg=COLOR_BLANCO)
+        roles_frame.pack(fill="x", pady=10)
+
+        tk.Label(roles_frame, text="Rol del Sistema:", bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#666").pack(side="left")
         rol_var = tk.StringVar(value=u.get('rol', 'Vendedor'))
-        ttk.Combobox(form, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly").pack(fill="x", pady=5)
+        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
 
         perm_var = tk.BooleanVar(value=bool(u.get('permitido', 1)))
-        tk.Checkbutton(form, text="¿Habilitar acceso al sistema?", variable=perm_var, bg=COLOR_BLANCO, font=("Segoe UI", 10)).pack(pady=20)
+        tk.Checkbutton(roles_frame, text="¿Habilitar acceso al sistema?", variable=perm_var, bg=COLOR_BLANCO, font=("Segoe UI", 11, "bold"), fg="#27ae60").pack(side="left", padx=40)
 
+        # --- LÓGICA DE GUARDADO ---
+        # --- LÓGICA DE GUARDADO ---
         def salvar():
             payload = {
                 "id": id_u,
@@ -262,20 +462,29 @@ class PanelAdministrador:
                 "name": entries['name'].get(),
                 "especialidad": entries['especialidad'].get(),
                 "rol": rol_var.get(),
-                "permitido": 1 if perm_var.get() else 0
+                "permitido": 1 if perm_var.get() else 0,
+                "password": entry_pass.get() 
             }
             try:
-                res_save = requests.post("http://localhost/api/empleado/actualizar", json=payload)
+                res_save = requests.post("http://www.ultracel.lat/api/empleado/actualizar", json=payload)
                 if res_save.status_code == 200:
-                    ventana_edit.destroy()
-                    self.admin_usuarios() # Recargar tabla principal
+                    messagebox.showinfo("Éxito", "El perfil se actualizó correctamente.")
+                    self.admin_usuarios() 
                 else:
-                    messagebox.showerror("Error", "No se pudo actualizar.")
-            except:
-                messagebox.showerror("Error", "Error de conexión.")
+                    # ¡AQUÍ ESTÁ LA MAGIA CHISMOSA!
+                    try:
+                        # Intentamos sacar el error exacto que manda Laravel
+                        detalle_error = res_save.json().get('message', res_save.text)
+                    except:
+                        # Si Laravel colapsó feo, mandamos el texto crudo
+                        detalle_error = res_save.text
+                        
+                    messagebox.showerror(f"Error {res_save.status_code}", f"Laravel dice:\n\n{detalle_error}")
+            except requests.exceptions.ConnectionError:
+                messagebox.showerror("Error", "Error de conexión con el servidor.")
 
-        tk.Button(ventana_edit, text="GUARDAR CAMBIOS", bg=COLOR_PRIMARIO, fg="white", 
-                  font=("Segoe UI", 11, "bold"), relief="flat", command=salvar).pack(pady=20, fill="x", padx=40)
+        tk.Button(form, text="GUARDAR CAMBIOS", bg=COLOR_PRIMARIO, fg="white", 
+                  font=("Segoe UI", 12, "bold"), relief="flat", command=salvar).pack(pady=30, fill="x")
 
     # --- 4. MODAL: AGREGAR NUEVO USUARIO ---
     def agregar_usuarios(self):
@@ -284,59 +493,89 @@ class PanelAdministrador:
         if not mi_taller_id:
             return messagebox.showerror("Error", "No hay licencia activa.")
 
-        ventana_agregar = tk.Toplevel(self.ventana)
-        ventana_agregar.title("Registrar Nuevo Usuario")
-        ventana_agregar.geometry("420x600")
-        ventana_agregar.configure(bg=COLOR_BLANCO)
-        ventana_agregar.grab_set()
+        # --- ADIÓS TOPLEVEL, HOLA PANEL DINÁMICO ---
+        # Limpiamos el área de trabajo
+        for w in self.main_content.winfo_children(): w.destroy()
 
-        tk.Label(ventana_agregar, text="NUEVO PERSONAL", font=("Segoe UI", 15, "bold"), 
-                 bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=25)
+        contenedor = tk.Frame(self.main_content, bg=COLOR_BLANCO)
+        contenedor.pack(fill="both", expand=True)
+
+        # --- ENCABEZADO Y BOTÓN DE REGRESAR ---
+        header = tk.Frame(contenedor, bg=COLOR_BLANCO)
+        header.pack(fill="x", padx=40, pady=(30, 10))
         
-        form = tk.Frame(ventana_agregar, bg=COLOR_BLANCO, padx=45)
-        form.pack(fill="both")
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white", 
+                  relief="flat", command=self.admin_usuarios, padx=15).pack(side="left")
+        
+        tk.Label(header, text="REGISTRAR NUEVO USUARIO", font=("Segoe UI", 18, "bold"), 
+                 bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(side="left", padx=20)
+
+        # --- CONTENEDOR CENTRAL DEL FORMULARIO ---
+        form = tk.Frame(contenedor, bg=COLOR_BLANCO)
+        form.pack(fill="x", padx=100, pady=20) 
 
         entries = {}
-        campos = {'email': 'Usuario Login (Email):', 'name': 'Nombre Completo:', 'especialidad': 'Especialidad:'}
+        campos = {
+            'email': 'Usuario Login (Email):', 
+            'name': 'Nombre Completo:', 
+            'especialidad': 'Especialidad (Opcional):'
+        }
 
         for key, text in campos.items():
-            tk.Label(form, text=text, font=("Segoe UI", 9, "bold"), bg=COLOR_BLANCO, fg="#666").pack(anchor="w")
-            e = tk.Entry(form, font=("Segoe UI", 11), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
-            e.pack(fill="x", pady=(5, 12), ipady=5)
+            tk.Label(form, text=text, font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg="#666").pack(anchor="w")
+            e = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
+            e.pack(fill="x", pady=(5, 15), ipady=8)
             entries[key] = e
 
-        tk.Label(form, text="Rol del Usuario:", font=("Segoe UI", 9, "bold"), bg=COLOR_BLANCO, fg="#666").pack(anchor="w")
-        rol_var = tk.StringVar(value="Vendedor")
-        ttk.Combobox(form, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly").pack(fill="x", pady=5)
+        # --- CAMPO DE CONTRASEÑA ---
+        tk.Label(form, text="Contraseña (Dejar en blanco para generar una aleatoria):", 
+                 bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#e74c3c").pack(anchor="w", pady=(10, 0))
+        entry_pass = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
+        entry_pass.pack(fill="x", pady=(5, 15), ipady=8)
 
+        # --- ROLES ---
+        roles_frame = tk.Frame(form, bg=COLOR_BLANCO)
+        roles_frame.pack(fill="x", pady=10)
+
+        tk.Label(roles_frame, text="Rol del Sistema:", font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg="#666").pack(side="left")
+        rol_var = tk.StringVar(value="Vendedor")
+        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
+
+        # --- LÓGICA DE GUARDADO ---
         def guardar():
-            passw = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            # Si el campo está vacío, genera la contraseña aleatoria como lo tenías antes
+            passw_ingresada = entry_pass.get()
+            passw_final = passw_ingresada if passw_ingresada else ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+
             if not entries['email'].get() or not entries['name'].get():
-                return messagebox.showwarning("Faltan datos", "Complete los campos obligatorios.")
+                return messagebox.showwarning("Faltan datos", "Complete los campos obligatorios (Email y Nombre).")
 
             payload = {
                 "email": entries['email'].get(),
                 "name": entries['name'].get(),
                 "especialidad": entries['especialidad'].get(),
                 "rol": rol_var.get(),
-                "password": passw,
+                "password": passw_final,
                 "taller_id": mi_taller_id
             }
 
             try:
-                res = requests.post("http://localhost/api/empleado/crear", json=payload)
+                res = requests.post("http://www.ultracel.lat/api/empleado/crear", json=payload)
                 if res.status_code == 200:
-                    messagebox.showinfo("Registro Exitoso", f"Usuario: {entries['email'].get()}\nContraseña Temporal: {passw}\n\n¡Guarda esta contraseña!")
-                    ventana_agregar.destroy()
-                    self.admin_usuarios() # Recargar tabla principal
+                    # Armamos el mensaje de éxito dependiendo de si fue manual o aleatoria
+                    msg = f"Usuario creado exitosamente.\n\nUsuario: {entries['email'].get()}\nContraseña: {passw_final}"
+                    if not passw_ingresada:
+                        msg += "\n\n¡Guarda esta contraseña temporal, se generó automáticamente!"
+                    
+                    messagebox.showinfo("Registro Exitoso", msg)
+                    self.admin_usuarios() # Recargar tabla principal y regresar a la vista anterior
                 else:
                     messagebox.showerror("Error", "No se pudo crear. Asegúrate de que el email no esté repetido.")
             except Exception as e: 
                 messagebox.showerror("Error", "Problema al conectar con la API.")
 
-        tk.Button(ventana_agregar, text="CREAR USUARIO", bg=COLOR_PRIMARIO, fg="white", 
-                  font=("Segoe UI", 11, "bold"), relief="flat", command=guardar).pack(pady=35, fill="x", padx=45)
-
+        tk.Button(form, text="CREAR USUARIO", bg=COLOR_PRIMARIO, fg="white", 
+                  font=("Segoe UI", 12, "bold"), relief="flat", command=guardar).pack(pady=35, fill="x")
     # --- 5. VISTA: REPORTES DE MATERIAL ---
     def ver_reportes_material(self):
         for w in self.main_content.winfo_children(): w.destroy()
@@ -374,7 +613,7 @@ class PanelAdministrador:
             if not mi_taller_id: return
             
             try:
-                res = requests.post("http://localhost/api/material/admin-listar", json={"taller_id": mi_taller_id})
+                res = requests.post("http://www.ultracel.lat/api/material/admin-listar", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for r in res.json().get('solicitudes', []):
                         tree.insert("", "end", values=(
@@ -401,7 +640,7 @@ class PanelAdministrador:
                     "id_solicitud": id_s,
                     "estado": nuevo
                 }
-                res = requests.post("http://localhost/api/material/actualizar-estado", json=payload)
+                res = requests.post("http://www.ultracel.lat/api/material/actualizar-estado", json=payload)
                 
                 if res.status_code == 200:
                     messagebox.showinfo("Éxito", f"La solicitud ha sido marcada como '{nuevo}'.")
@@ -444,4 +683,5 @@ class PanelAdministrador:
             subprocess.Popen([sys.executable, "Login.py"])
 
 if __name__ == "__main__":
-    app = PanelAdministrador()
+    id_logueado = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    app = PanelAdministrador(id_admin=id_logueado)
