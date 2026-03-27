@@ -353,7 +353,7 @@ class PanelVendedor:
         
         if mi_taller_id:
             try:
-                url_api = "http://www.ultracel.lat/api/pos/clientes"
+                url_api = "https://www.ultracel.lat/api/pos/clientes"
                 res = requests.post(url_api, json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     clientes = res.json().get('clientes', [])
@@ -524,7 +524,7 @@ class PanelVendedor:
             # 4. Confirmamos y enviamos a Laravel
             if messagebox.askyesno("Confirmar Cobro", f"¿Deseas procesar esta venta por un TOTAL de ${total_venta:.2f}?"):
                 try:
-                    res = requests.post("http://www.ultracel.lat/api/pos/procesar-venta", json=payload)
+                    res = requests.post("https://www.ultracel.lat/api/pos/procesar-venta", json=payload)
                     
                     if res.status_code == 200:
                         messagebox.showinfo("¡Venta Exitosa!", "La venta se ha registrado. El stock y las reparaciones han sido actualizadas.")
@@ -577,7 +577,7 @@ class PanelVendedor:
 
             for i in tree_productos.get_children(): tree_productos.delete(i)
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/buscar-productos", json={"taller_id": mi_taller_id, "termino": termino})
+                res = requests.post("https://www.ultracel.lat/api/pos/buscar-productos", json={"taller_id": mi_taller_id, "termino": termino})
                 if res.status_code == 200:
                     for p in res.json().get('productos', []):
                         tree_productos.insert("", "end", values=(p['id_producto'], p['nombre_producto'], f"${float(p['precio_venta']):.2f}"))
@@ -603,7 +603,7 @@ class PanelVendedor:
             
             try:
                 # AQUÍ agregamos el taller_id al JSON
-                res = requests.post("http://www.ultracel.lat/api/pos/reparaciones-cliente", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/pos/reparaciones-cliente", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
                 
                 if res.status_code == 200:
                     reparaciones = res.json().get('reparaciones', [])
@@ -697,7 +697,7 @@ class PanelVendedor:
                 "total": total,
                 "items": payload_items
             }
-            res = requests.post("http://www.ultracel.lat/api/pos/procesar-venta", json=payload)
+            res = requests.post("https://www.ultracel.lat/api/pos/procesar-venta", json=payload)
             
             if res.status_code == 200:
                 messagebox.showinfo("Venta Finalizada", "La venta se ha registrado exitosamente.")
@@ -747,7 +747,7 @@ class PanelVendedor:
         mi_taller_id = obtener_taller_id()
         if mi_taller_id:
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/clientes", json={"taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/pos/clientes", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for i, cliente in enumerate(res.json().get('clientes', [])):
                         tag = 'evenrow' if i % 2 == 0 else 'oddrow'
@@ -865,7 +865,7 @@ class PanelVendedor:
         # Si estamos editando, cargamos los datos (Asumiendo que tienes una ruta para ver por SKU)
         if sku_editar:
             try:
-                res = requests.post("http://www.ultracel.lat/api/inventario/obtener-por-sku", json={"sku": sku_editar, "taller_id": obtener_taller_id()})
+                res = requests.post("https://www.ultracel.lat/api/inventario/obtener-por-sku", json={"sku": sku_editar, "taller_id": obtener_taller_id()})
                 if res.status_code == 200:
                     prod_data = res.json().get('producto', {})
                     if prod_data:
@@ -888,7 +888,7 @@ class PanelVendedor:
                 return messagebox.showwarning("Datos Incompletos", "SKU y Nombre son obligatorios.")
 
             # Ruta ficticia, asegúrate de tenerla en Laravel
-            ruta_api = "http://www.ultracel.lat/api/inventario/actualizar" if sku_editar else "http://www.ultracel.lat/api/inventario/crear"
+            ruta_api = "https://www.ultracel.lat/api/inventario/actualizar" if sku_editar else "https://www.ultracel.lat/api/inventario/crear"
             
             try:
                 res_save = requests.post(ruta_api, json=payload)
@@ -918,7 +918,7 @@ class PanelVendedor:
             mi_taller_id = obtener_taller_id()
             if not mi_taller_id: return
             try:
-                res = requests.post("http://www.ultracel.lat/api/inventario/eliminar", json={"sku": sku_a_eliminar, "taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/inventario/eliminar", json={"sku": sku_a_eliminar, "taller_id": mi_taller_id})
                 if res.status_code == 200:
                     messagebox.showinfo("Eliminado", "Producto eliminado.")
                     self.mostrar_inventario()
@@ -1011,7 +1011,8 @@ class PanelVendedor:
 
         # --- LÓGICA DE DATOS CONEXIÓN A LARAVEL ---
         try:
-            res = requests.post("http://www.ultracel.lat/api/clientes/historial", json={"id_cliente": id_cliente})
+            mi_taller_id = obtener_taller_id() # 🔒 PASE VIP
+            res = requests.post("https://www.ultracel.lat/api/clientes/historial", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
             if res.status_code == 200:
                 historial = res.json().get('historial', [])
                 if not historial:
@@ -1110,7 +1111,7 @@ class PanelVendedor:
             for i in tree_ventas.get_children(): tree_ventas.delete(i)
             
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for idx, v in enumerate(res.json().get('ventas', [])):
                         tag = 'evenrow' if idx % 2 == 0 else 'oddrow'
@@ -1137,7 +1138,8 @@ class PanelVendedor:
             
             for i in tree_detalles.get_children(): tree_detalles.delete(i)
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/detalles-venta", json={"id_venta": id_venta})
+                mi_taller_id = obtener_taller_id() # 🔒 CANDADO AÑADIDO
+                res = requests.post("https://www.ultracel.lat/api/pos/detalles-venta", json={"id_venta": id_venta, "taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for d in res.json().get('detalles', []):
                         
@@ -1235,7 +1237,7 @@ class PanelVendedor:
             
             try:
                 # Usamos la ruta general para ver TODO (Refacciones y Venta Directa)
-                res = requests.post("http://www.ultracel.lat/api/inventario/buscar", json={"taller_id": mi_taller_id, "termino": search_var.get()})
+                res = requests.post("https://www.ultracel.lat/api/inventario/buscar", json={"taller_id": mi_taller_id, "termino": search_var.get()})
                 if res.status_code == 200:
                     for i, prod in enumerate(res.json().get('productos', [])):
                         tag = 'evenrow' if i % 2 == 0 else 'oddrow'
@@ -1306,7 +1308,8 @@ class PanelVendedor:
         # --- Lógica de Edición (Cargar datos de Laravel) ---
         if id_cliente:
             try:
-                res = requests.post("http://www.ultracel.lat/api/clientes/obtener", json={"id_cliente": id_cliente})
+                mi_taller_id = obtener_taller_id() # 🔒 CANDADO AÑADIDO
+                res = requests.post("https://www.ultracel.lat/api/clientes/obtener", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
                 if res.status_code == 200:
                     cli_data = res.json().get('cliente', {})
                     if cli_data:
@@ -1335,7 +1338,7 @@ class PanelVendedor:
                 payload["id_cliente"] = id_cliente 
 
             try:
-                res_save = requests.post("http://www.ultracel.lat/api/clientes/guardar", json=payload)
+                res_save = requests.post("https://www.ultracel.lat/api/clientes/guardar", json=payload)
                 if res_save.status_code == 200:
                     messagebox.showinfo("Éxito", res_save.json().get('message', 'Cliente guardado correctamente.'))
                     self.mostrar_admin_clientes() # Magia: regresa a la tabla y la actualiza
@@ -1412,7 +1415,7 @@ class PanelVendedor:
 
         try:
             # Aprovechamos la ruta del POS que ya nos trae los clientes
-            res_cli = requests.post("http://www.ultracel.lat/api/pos/clientes", json={"taller_id": mi_taller_id})
+            res_cli = requests.post("https://www.ultracel.lat/api/pos/clientes", json={"taller_id": mi_taller_id})
             if res_cli.status_code == 200:
                 for c in res_cli.json().get('clientes', []):
                     nombre_completo = c['nombre_completo']
@@ -1484,7 +1487,7 @@ class PanelVendedor:
                 payload["id_cliente"] = id_cliente_sel
 
             try:
-                res = requests.post("http://www.ultracel.lat/api/clientes/registrar-equipo", json=payload)
+                res = requests.post("https://www.ultracel.lat/api/clientes/registrar-equipo", json=payload)
                 if res.status_code == 200:
                     messagebox.showinfo("Éxito", "Celular registrado correctamente.\nEl técnico ya lo tiene en su fila de pendientes.", parent=self.ventana)
                     self.mostrar_admin_clientes()

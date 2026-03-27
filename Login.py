@@ -118,7 +118,7 @@ def iniciar_sesion():
             messagebox.showwarning("Campos vacíos", "Ingresa tu correo y contraseña de administrador.")
             return
 
-        url_api = "http://www.ultracel.lat/api/activar-licencia"
+        url_api = "https://www.ultracel.lat/api/activar-licencia"
         payload = {"email": email_admin, "password": password_admin}
 
         try:
@@ -146,7 +146,7 @@ def iniciar_sesion():
             messagebox.showwarning("Campos vacíos", "Por favor ingresa tu correo y contraseña.")
             return
 
-        url_api = "http://www.ultracel.lat/api/login"
+        url_api = "https://www.ultracel.lat/api/login"
         payload = {"email": email_ingresado, "password": password_ingresado}
 
         try:
@@ -155,15 +155,26 @@ def iniciar_sesion():
                 datos = respuesta.json()
                 rol = datos.get('rol')
                 nombre = datos.get('name')
+                user_taller_id = datos.get('taller_id')
+
+                # 🔒 CANDADO MAESTRO FRONTEND: Evitar que un empleado de otra sucursal inicie sesión aquí
+                try:
+                    with open(ARCHIVO_LICENCIA, 'r') as file:
+                        taller_licencia = json.load(file).get('taller_id')
+                    
+                    if str(user_taller_id) != str(taller_licencia):
+                        return messagebox.showerror("Acceso Denegado 🛡️", "Tu usuario no pertenece a esta sucursal.")
+                except:
+                    return messagebox.showerror("Error", "Licencia corrupta. Vuelve a activar el software.")
                 
                 # ¡Atrapamos el ID y lo convertimos a texto para mandarlo!
-                id_usuario = str(datos.get('id', 1)) 
+                id_usuario = str(datos.get('id', 1))
                 
                 messagebox.showinfo("¡Acceso Concedido!", f"Bienvenido al sistema, {nombre}\nRol detectado: {rol}")
                 root.destroy()
                 
                 # Le mandamos el id_usuario como un parámetro oculto al abrir el archivo
-                if rol == "Admin": subprocess.Popen([sys.executable, "panel_administrador.py", id_usuario])
+                if rol == "admin": subprocess.Popen([sys.executable, "panel_administrador.py", id_usuario])
                 elif rol == "Tecnico": subprocess.Popen([sys.executable, "tecnico.py", id_usuario])
                 elif rol.lower() == "vendedor": subprocess.Popen([sys.executable, "vendedor.py", id_usuario])
                 else: messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")

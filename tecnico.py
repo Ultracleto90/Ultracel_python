@@ -384,7 +384,7 @@ class PanelTecnico:
         for i in self.tree.get_children(): self.tree.delete(i)
 
         try:
-            url_api = "http://www.ultracel.lat/api/reparaciones/pendientes"
+            url_api = "https://www.ultracel.lat/api/reparaciones/pendientes"
             respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
             
             if respuesta.status_code == 200:
@@ -418,8 +418,11 @@ class PanelTecnico:
         id_reparacion = self.tree.item(item_seleccionado[0], 'values')[0]
 
         # Pedimos los detalles a Laravel
+        mi_taller_id = obtener_taller_id() # 🔒 PASE VIP AL TALLER
+
+        # Pedimos los detalles a Laravel
         try:
-            res = requests.post("http://www.ultracel.lat/api/reparaciones/detalles", json={"id_reparacion": id_reparacion})
+            res = requests.post("https://www.ultracel.lat/api/reparaciones/detalles", json={"id_reparacion": id_reparacion, "taller_id": mi_taller_id})
             if res.status_code == 200:
                 detalles = res.json().get('detalles', {})
             else:
@@ -452,7 +455,8 @@ class PanelTecnico:
         def marcar_como_terminado():
             if messagebox.askyesno("Confirmar", "¿Estás seguro de que has terminado esta reparación?"):
                 try:
-                    res_up = requests.post("http://www.ultracel.lat/api/reparaciones/terminar", json={"id_reparacion": id_reparacion})
+                    mi_taller_id = obtener_taller_id() # 🔒 CANDADO AÑADIDO
+                    res_up = requests.post("https://www.ultracel.lat/api/reparaciones/terminar", json={"id_reparacion": id_reparacion, "taller_id": mi_taller_id})
                     if res_up.status_code == 200:
                         messagebox.showinfo("Éxito", f"Reparación #{id_reparacion} marcada como 'Reparada'.")
                         # ¡CORRECCIÓN 1: Llamamos a la función correcta!
@@ -563,7 +567,7 @@ class PanelTecnico:
                 return
 
             try:
-                url_api = "http://www.ultracel.lat/api/inventario/buscar"
+                url_api = "https://www.ultracel.lat/api/inventario/buscar"
                 payload = {
                     "taller_id": mi_taller_id,
                     "termino": termino_busqueda
@@ -635,7 +639,7 @@ class PanelTecnico:
             return messagebox.showerror("Error", "No hay licencia activa.")
 
         try:
-            url_api = "http://www.ultracel.lat/api/reparaciones/pendientes"
+            url_api = "https://www.ultracel.lat/api/reparaciones/pendientes"
             respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
             
             if respuesta.status_code == 200:
@@ -771,7 +775,7 @@ class PanelTecnico:
             mi_taller_id = obtener_taller_id()
             if mi_taller_id:
                 try:
-                    res_inv = requests.post("http://www.ultracel.lat/api/diagnostico/inventario", json={"taller_id": mi_taller_id})
+                    res_inv = requests.post("https://www.ultracel.lat/api/diagnostico/inventario", json={"taller_id": mi_taller_id})
                     if res_inv.status_code == 200:
                         inventario = res_inv.json().get('inventario', [])
                         for prod in inventario:
@@ -809,13 +813,15 @@ class PanelTecnico:
 
                 if messagebox.askyesno("Confirmar", "¿Guardar este diagnóstico y presupuesto?"):
                     try:
+                        mi_taller_id = obtener_taller_id() # 🔒 PASE VIP
                         payload = {
+                            "taller_id": mi_taller_id, # 🔒 CANDADO AÑADIDO
                             "id_reparacion": id_reparacion_seleccionada,
                             "diagnostico": diagnostico,
                             "presupuesto": float(presupuesto_final),
                             "piezas": piezas_a_usar
                         }
-                        res_save = requests.post("http://www.ultracel.lat/api/diagnostico/guardar", json=payload)
+                        res_save = requests.post("https://www.ultracel.lat/api/diagnostico/guardar", json=payload)
                         
                         if res_save.status_code == 200:
                             messagebox.showinfo("Éxito", res_save.json().get('message', 'Diagnóstico guardado.'))
@@ -923,8 +929,11 @@ class PanelTecnico:
             for i in tree_solicitudes.get_children():
                 tree_solicitudes.delete(i)
 
+            mi_taller_id = obtener_taller_id() # 🔒 PASE VIP
+            if not mi_taller_id: return
+
             try:
-                res = requests.post("http://www.ultracel.lat/api/material/listar", json={"id_tecnico": self.id_tecnico_logueado})
+                res = requests.post("https://www.ultracel.lat/api/material/listar", json={"id_tecnico": self.id_tecnico_logueado, "taller_id": mi_taller_id})
                 if res.status_code == 200:
                     solicitudes = res.json().get('solicitudes', [])
                     for idx, s in enumerate(solicitudes):
@@ -958,7 +967,7 @@ class PanelTecnico:
                     "cantidad": int(cantidad),
                     "descripcion": descripcion
                 }
-                res = requests.post("http://www.ultracel.lat/api/material/crear", json=payload)
+                res = requests.post("https://www.ultracel.lat/api/material/crear", json=payload)
                 
                 if res.status_code == 200:
                     messagebox.showinfo("Éxito", "Tu solicitud de material ha sido enviada al administrador.")

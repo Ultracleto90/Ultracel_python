@@ -186,7 +186,7 @@ class PanelAdministrador:
             if not mi_taller_id: return
             
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for v in res.json().get('ventas', []):
                         monto_limpio = float(v['monto_total'])
@@ -217,7 +217,8 @@ class PanelAdministrador:
             for i in tree_detalles.get_children(): tree_detalles.delete(i)
             
             try:
-                res = requests.post("http://www.ultracel.lat/api/pos/detalles-venta", json={"id_venta": id_venta})
+                mi_taller_id = obtener_taller_id() # 🔒 SACAMOS EL PASE VIP
+                res = requests.post("https://www.ultracel.lat/api/pos/detalles-venta", json={"id_venta": id_venta, "taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for d in res.json().get('detalles', []):
                         # Parche matemático para evitar el crash de strings
@@ -342,7 +343,7 @@ class PanelAdministrador:
 
             try:
                 # 2. Le pedimos a Laravel la lista de empleados de este taller
-                url_api = "http://www.ultracel.lat/api/empleados"
+                url_api = "https://www.ultracel.lat/api/empleados"
                 respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
                 
                 if respuesta.status_code == 200:
@@ -388,8 +389,9 @@ class PanelAdministrador:
     # --- 3. MODAL: EDITAR USUARIO ---
     def editar_usuario_modal(self, id_u):
         # 1. Obtenemos los datos del usuario desde Laravel
+        mi_taller_id = obtener_taller_id() # 🔒 SACAMOS EL PASE VIP
         try:
-            res = requests.post("http://www.ultracel.lat/api/empleado/ver", json={"id": id_u})
+            res = requests.post("https://www.ultracel.lat/api/empleado/ver", json={"id": id_u, "taller_id": mi_taller_id})
             if res.status_code != 200:
                 return messagebox.showerror("Error", "No se pudo cargar el usuario.")
             u = res.json().get('empleado', {})
@@ -463,10 +465,11 @@ class PanelAdministrador:
                 "especialidad": entries['especialidad'].get(),
                 "rol": rol_var.get(),
                 "permitido": 1 if perm_var.get() else 0,
-                "password": entry_pass.get() 
+                "password": entry_pass.get(),
+                "taller_id": mi_taller_id # 🔒 CANDADO AÑADIDO AL PAYLOAD
             }
             try:
-                res_save = requests.post("http://www.ultracel.lat/api/empleado/actualizar", json=payload)
+                res_save = requests.post("https://www.ultracel.lat/api/empleado/actualizar", json=payload)
                 if res_save.status_code == 200:
                     messagebox.showinfo("Éxito", "El perfil se actualizó correctamente.")
                     self.admin_usuarios() 
@@ -560,7 +563,7 @@ class PanelAdministrador:
             }
 
             try:
-                res = requests.post("http://www.ultracel.lat/api/empleado/crear", json=payload)
+                res = requests.post("https://www.ultracel.lat/api/empleado/crear", json=payload)
                 if res.status_code == 200:
                     # Armamos el mensaje de éxito dependiendo de si fue manual o aleatoria
                     msg = f"Usuario creado exitosamente.\n\nUsuario: {entries['email'].get()}\nContraseña: {passw_final}"
@@ -613,7 +616,7 @@ class PanelAdministrador:
             if not mi_taller_id: return
             
             try:
-                res = requests.post("http://www.ultracel.lat/api/material/admin-listar", json={"taller_id": mi_taller_id})
+                res = requests.post("https://www.ultracel.lat/api/material/admin-listar", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for r in res.json().get('solicitudes', []):
                         tree.insert("", "end", values=(
@@ -636,11 +639,13 @@ class PanelAdministrador:
             id_s = tree.item(sel[0])['values'][0]
             
             try:
+                mi_taller_id = obtener_taller_id() # 🔒 SACAMOS EL PASE VIP
                 payload = {
                     "id_solicitud": id_s,
-                    "estado": nuevo
+                    "estado": nuevo,
+                    "taller_id": mi_taller_id # 🔒 CANDADO AÑADIDO
                 }
-                res = requests.post("http://www.ultracel.lat/api/material/actualizar-estado", json=payload)
+                res = requests.post("https://www.ultracel.lat/api/material/actualizar-estado", json=payload)
                 
                 if res.status_code == 200:
                     messagebox.showinfo("Éxito", f"La solicitud ha sido marcada como '{nuevo}'.")
