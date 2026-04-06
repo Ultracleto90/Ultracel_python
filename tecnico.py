@@ -385,7 +385,9 @@ class PanelTecnico:
 
         try:
             url_api = "https://www.ultracel.lat/api/reparaciones/pendientes"
-            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
+            # 🛡️ Agregamos los headers para que Laravel jamás nos devuelva HTML
+            headers = {"Accept": "application/json"}
+            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id}, headers=headers)
             
             if respuesta.status_code == 200:
                 reparaciones = respuesta.json().get('reparaciones', [])
@@ -398,9 +400,9 @@ class PanelTecnico:
                     
                     self.tree.insert("", "end", values=(
                         rep.get('id_reparacion'), 
-                        rep.get('dispositivo'), 
-                        estado_real,  # Mostramos el estado en la columna nueva
-                        rep.get('problema_reportado')
+                        rep.get('dispositivo'),
+                        estado_real,  
+                        rep.get('problema_reportado') # 🔙 Revertido a la normalidad absoluta
                     ), tags=(tag_color,))
             else:
                 print(f"🚨 Error al cargar pendientes: {respuesta.status_code} - {respuesta.text}")
@@ -422,11 +424,13 @@ class PanelTecnico:
 
         # Pedimos los detalles a Laravel
         try:
-            res = requests.post("https://www.ultracel.lat/api/reparaciones/detalles", json={"id_reparacion": id_reparacion, "taller_id": mi_taller_id})
+            headers = {"Accept": "application/json"}
+            # 🐛 Python enviaba id_reparacion, pero Laravel espera reparacion_id
+            res = requests.post("https://www.ultracel.lat/api/reparaciones/detalles", json={"reparacion_id": id_reparacion, "taller_id": mi_taller_id}, headers=headers)
             if res.status_code == 200:
                 detalles = res.json().get('detalles', {})
             else:
-                return messagebox.showerror("Error", "No se pudo cargar la información.")
+                return messagebox.showerror("Error", f"No se pudo cargar la información. Error: {res.status_code}")
         except:
             return messagebox.showerror("Error", "Sin conexión al servidor.")
 
@@ -456,7 +460,9 @@ class PanelTecnico:
             if messagebox.askyesno("Confirmar", "¿Estás seguro de que has terminado esta reparación?"):
                 try:
                     mi_taller_id = obtener_taller_id() # 🔒 CANDADO AÑADIDO
-                    res_up = requests.post("https://www.ultracel.lat/api/reparaciones/terminar", json={"id_reparacion": id_reparacion, "taller_id": mi_taller_id})
+                    headers = {"Accept": "application/json"}
+                    # 🐛 Python enviaba id_reparacion, pero Laravel espera reparacion_id
+                    res_up = requests.post("https://www.ultracel.lat/api/reparaciones/terminar", json={"reparacion_id": id_reparacion, "taller_id": mi_taller_id}, headers=headers)
                     if res_up.status_code == 200:
                         messagebox.showinfo("Éxito", f"Reparación #{id_reparacion} marcada como 'Reparada'.")
                         # ¡CORRECCIÓN 1: Llamamos a la función correcta!
@@ -640,17 +646,18 @@ class PanelTecnico:
 
         try:
             url_api = "https://www.ultracel.lat/api/reparaciones/pendientes"
-            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
+            headers = {"Accept": "application/json"}
+            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id}, headers=headers)
             
             if respuesta.status_code == 200:
                 reparaciones = respuesta.json().get('reparaciones', [])
                 # ¡AQUÍ ES DONDE SE LLENA AHORA!
                 combo_reparaciones['values'] = [
-                    f"{r.get('id_reparacion')} - {r.get('dispositivo')}" 
+                    f"{r.get('id_reparacion')} - {r.get('dispositivo')}" # 🔙 Revertido a la normalidad
                     for r in reparaciones
                 ]
             else:
-                messagebox.showerror("Error", "No se pudieron cargar las reparaciones pendientes.")
+                messagebox.showerror("Error", f"No se pudieron cargar las reparaciones. Servidor dice: {respuesta.status_code}")
         except requests.exceptions.ConnectionError:
             messagebox.showerror("Error", "Sin conexión al servidor.")
 

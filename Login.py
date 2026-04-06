@@ -175,8 +175,8 @@ def iniciar_sesion():
                 
                 # Le mandamos el id_usuario como un parámetro oculto al abrir el archivo
                 if rol == "admin": subprocess.Popen([sys.executable, "panel_administrador.py", id_usuario])
-                elif rol == "Tecnico": subprocess.Popen([sys.executable, "tecnico.py", id_usuario])
-                elif rol.lower() == "vendedor": subprocess.Popen([sys.executable, "vendedor.py", id_usuario])
+                elif rol == "tecnico" or rol == "Tecnico": subprocess.Popen([sys.executable, "tecnico.py", id_usuario])
+                elif rol.lower() == "vendedor" or rol == "Vendedor": subprocess.Popen([sys.executable, "vendedor.py", id_usuario])
                 else: messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")
             elif respuesta.status_code == 401:
                 messagebox.showerror("Acceso Denegado", "El correo o la contraseña son incorrectos.")
