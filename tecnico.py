@@ -6,134 +6,77 @@ from PIL import Image, ImageTk, ImageFilter
 import requests
 import json
 
-# --- PALETA DE COLORES PROFESIONAL ---
-COLOR_PRIMARIO       = "#1B2A4A"   # Azul marino oscuro (header, acentos fuertes)
-COLOR_SECUNDARIO     = "#2E86DE"   # Azul vibrante (botones principales)
-COLOR_ACENTO         = "#54A0FF"   # Azul claro (hover, acentos suaves)
-COLOR_EXITO          = "#10AC84"   # Verde elegante (guardar, confirmar)
-COLOR_PELIGRO        = "#EE5A24"   # Naranja-rojo (eliminar, cerrar sesion)
-COLOR_ADVERTENCIA    = "#F6B93B"   # Amarillo dorado (advertencias)
-COLOR_TEXTO_OSCURO   = "#2C3A4B"   # Texto principal
-COLOR_TEXTO_GRIS     = "#8395A7"   # Texto secundario / subtitulos
-COLOR_TEXTO_BLANCO   = "#FFFFFF"   # Texto sobre fondos oscuros
-COLOR_FONDO_APP      = "#F1F2F6"   # Fondo general de la app
-COLOR_FONDO_PANEL    = "#FFFFFF"   # Fondo del panel flotante
-COLOR_FONDO_SECCION  = "#F8F9FA"   # Fondo sutil para secciones internas
-COLOR_BORDE          = "#DFE6E9"   # Bordes sutiles
-COLOR_MENU_BG        = "#1B2A4A"   # Fondo del menu lateral
-COLOR_MENU_HOVER     = "#2E4066"   # Hover en el menu lateral
-COLOR_FILA_PAR       = "#FFFFFF"   # Filas pares en tablas
-COLOR_FILA_IMPAR     = "#F0F6FF"   # Filas impares en tablas (azul muy tenue)
-COLOR_SELECCION      = "#D6EAF8"   # Color de seleccion en tablas
+# --- PALETA DE COLORES ENTERPRISE (DARK MODE) ---
+COLOR_PRIMARIO       = "#3B82F6"   # Azul Neón
+COLOR_SECUNDARIO     = "#2563EB"   # Azul Intermedio
+COLOR_ACENTO         = "#1D4ED8"   # Azul Fuerte
+COLOR_EXITO          = "#10B981"   # Verde
+COLOR_PELIGRO        = "#EF4444"   # Rojo
+COLOR_ADVERTENCIA    = "#F59E0B"   # Amarillo
+COLOR_TEXTO_OSCURO   = "#F3F4F6"   # ENGAÑO: Lo llamamos oscuro pero es BLANCO HUMO
+COLOR_TEXTO_GRIS     = "#9CA3AF"   # Gris claro
+COLOR_TEXTO_BLANCO   = "#FFFFFF"   # Blanco puro
+COLOR_FONDO_APP      = "#111827"   # Fondo principal (Gris muy oscuro)
+COLOR_FONDO_PANEL    = "#1F2937"   # Fondo tarjetas
+COLOR_FONDO_SECCION  = "#1F2937"   
+COLOR_BORDE          = "#374151"   # Bordes oscuros
+COLOR_MENU_BG        = "#111827"   # Sidebar
+COLOR_MENU_HOVER     = "#1F2937"
+COLOR_FILA_PAR       = "#1F2937"   # Tabla Dark
+COLOR_FILA_IMPAR     = "#374151"   # Tabla Dark 2
+COLOR_SELECCION      = "#3B82F6"
 
 # --- FUENTES ---
-FUENTE_TITULO        = ("Segoe UI", 16, "bold")
-FUENTE_SUBTITULO     = ("Segoe UI", 12, "bold")
-FUENTE_CUERPO        = ("Segoe UI", 10)
-FUENTE_CUERPO_BOLD   = ("Segoe UI", 10, "bold")
+FUENTE_TITULO        = ("Segoe UI", 24, "bold")
+FUENTE_SUBTITULO     = ("Segoe UI", 16, "bold")
+FUENTE_CUERPO        = ("Segoe UI", 11)
+FUENTE_CUERPO_BOLD   = ("Segoe UI", 11, "bold")
 FUENTE_BOTON         = ("Segoe UI", 11, "bold")
 FUENTE_MENU          = ("Segoe UI", 11)
 FUENTE_MENU_TITULO   = ("Segoe UI", 15, "bold")
 FUENTE_ETIQUETA      = ("Segoe UI", 9)
-FUENTE_TABLA         = ("Segoe UI", 9)
-FUENTE_TABLA_HEAD    = ("Segoe UI", 10, "bold")
+FUENTE_TABLA         = ("Segoe UI", 10)
+FUENTE_TABLA_HEAD    = ("Segoe UI", 11, "bold")
 
 def obtener_taller_id():
-    """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
     try:
         with open("licencia.json", "r") as f:
-            datos = json.load(f)
-            return datos.get("taller_id")
-    except:
-        return None
+            return json.load(f).get("taller_id")
+    except: return None
 
 def configurar_estilos_ttk():
-    """Configura los estilos ttk para Treeview, Combobox, Scrollbar, etc."""
     style = ttk.Style()
     style.theme_use("clam")
+    
+    style.configure("Custom.Treeview", background=COLOR_FILA_PAR, foreground=COLOR_TEXTO_OSCURO, fieldbackground=COLOR_FILA_PAR, rowheight=35, font=FUENTE_TABLA, borderwidth=0)
+    style.configure("Custom.Treeview.Heading", background=COLOR_FONDO_APP, foreground=COLOR_TEXTO_OSCURO, font=FUENTE_TABLA_HEAD, relief="flat", padding=(8, 6))
+    style.map("Custom.Treeview.Heading", background=[("active", COLOR_BORDE)])
+    style.map("Custom.Treeview", background=[("selected", COLOR_SELECCION)], foreground=[("selected", COLOR_TEXTO_BLANCO)])
+    
+    style.configure("Custom.TCombobox", fieldbackground=COLOR_FONDO_APP, background=COLOR_BORDE, foreground=COLOR_TEXTO_OSCURO, arrowcolor=COLOR_TEXTO_BLANCO, padding=6)
+    style.map("Custom.TCombobox", fieldbackground=[("readonly", COLOR_FONDO_APP)], selectbackground=[("readonly", COLOR_SELECCION)])
+    
+    style.configure("Custom.Vertical.TScrollbar", gripcount=0, background=COLOR_BORDE, troughcolor=COLOR_FONDO_APP, borderwidth=0, arrowsize=14)
+    style.map("Custom.Vertical.TScrollbar", background=[("active", COLOR_PRIMARIO)])
 
-    # --- Treeview ---
-    style.configure("Custom.Treeview",
-                    background=COLOR_FILA_PAR,
-                    foreground=COLOR_TEXTO_OSCURO,
-                    fieldbackground=COLOR_FILA_PAR,
-                    rowheight=30,
-                    font=FUENTE_TABLA,
-                    borderwidth=0)
-    style.configure("Custom.Treeview.Heading",
-                    background=COLOR_PRIMARIO,
-                    foreground=COLOR_TEXTO_BLANCO,
-                    font=FUENTE_TABLA_HEAD,
-                    relief="flat",
-                    padding=(8, 6))
-    style.map("Custom.Treeview.Heading",
-              background=[("active", COLOR_SECUNDARIO)])
-    style.map("Custom.Treeview",
-              background=[("selected", COLOR_SELECCION)],
-              foreground=[("selected", COLOR_TEXTO_OSCURO)])
-
-    # --- Combobox ---
-    style.configure("Custom.TCombobox",
-                    fieldbackground=COLOR_TEXTO_BLANCO,
-                    background=COLOR_SECUNDARIO,
-                    foreground=COLOR_TEXTO_OSCURO,
-                    arrowcolor=COLOR_SECUNDARIO,
-                    padding=6)
-    style.map("Custom.TCombobox",
-              fieldbackground=[("readonly", COLOR_TEXTO_BLANCO)],
-              selectbackground=[("readonly", COLOR_SELECCION)])
-
-    # --- Scrollbar ---
-    style.configure("Custom.Vertical.TScrollbar",
-                    gripcount=0,
-                    background=COLOR_BORDE,
-                    troughcolor=COLOR_FONDO_APP,
-                    borderwidth=0,
-                    arrowsize=14)
-    style.map("Custom.Vertical.TScrollbar",
-              background=[("active", COLOR_ACENTO), ("!active", "#C8D6E5")])
-
-
-def crear_boton(parent, texto, comando, color_bg, color_fg=COLOR_TEXTO_BLANCO,
-                fuente=FUENTE_BOTON, height=1, ancho=None, padx_btn=12, pady_btn=6):
-    """Crea un boton estilizado con efecto hover."""
-    btn = tk.Button(parent, text=texto, font=fuente, bg=color_bg, fg=color_fg,
-                    activebackground=color_bg, activeforeground=color_fg,
-                    relief="flat", cursor="hand2", bd=0,
-                    height=height, command=comando)
-    if ancho:
-        btn.configure(width=ancho)
+def crear_boton(parent, texto, comando, color_bg, color_fg=COLOR_TEXTO_BLANCO, fuente=FUENTE_BOTON, height=1, ancho=None, padx_btn=12, pady_btn=6):
+    btn = tk.Button(parent, text=texto, font=fuente, bg=color_bg, fg=color_fg, activebackground=color_bg, activeforeground=color_fg, relief="flat", cursor="hand2", bd=0, height=height, command=comando)
+    if ancho: btn.configure(width=ancho)
     btn.configure(padx=padx_btn, pady=pady_btn)
-
-    def on_enter(e):
-        btn.configure(bg=_aclarar_color(color_bg, 25))
-    def on_leave(e):
-        btn.configure(bg=color_bg)
-
-    btn.bind("<Enter>", on_enter)
-    btn.bind("<Leave>", on_leave)
+    btn.bind("<Enter>", lambda e: btn.configure(bg=COLOR_BORDE)) 
+    btn.bind("<Leave>", lambda e: btn.configure(bg=color_bg))
     return btn
 
-
 def crear_entry_estilizado(parent, font=FUENTE_CUERPO, width=None):
-    """Crea un Entry con borde sutil y padding."""
-    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0, highlightthickness=0)
-    entry = tk.Entry(frame, font=font, bd=0, bg=COLOR_TEXTO_BLANCO,
-                     fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_SECUNDARIO,
-                     highlightthickness=0)
-    if width:
-        entry.configure(width=width)
+    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0)
+    entry = tk.Entry(frame, font=font, bd=0, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_PRIMARIO)
+    if width: entry.configure(width=width)
     entry.pack(fill="x", padx=1, pady=1, ipady=6)
     return frame, entry
 
-
 def crear_text_estilizado(parent, height=3, font=FUENTE_CUERPO):
-    """Crea un Text widget con borde sutil."""
-    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0, highlightthickness=0)
-    text_widget = tk.Text(frame, height=height, font=font, bd=0,
-                          bg=COLOR_TEXTO_BLANCO, fg=COLOR_TEXTO_OSCURO,
-                          insertbackground=COLOR_SECUNDARIO,
-                          highlightthickness=0, padx=8, pady=6)
+    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0)
+    text_widget = tk.Text(frame, height=height, font=font, bd=0, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_PRIMARIO, padx=8, pady=6)
     text_widget.pack(fill="x", padx=1, pady=1)
     return frame, text_widget
 
@@ -151,207 +94,95 @@ class PanelTecnico:
     def __init__(self, id_tecnico=None):
         self.id_tecnico_logueado = id_tecnico if id_tecnico else 2
         self.ventana = tk.Tk()
-        self.ventana.title("Panel Tecnico - ULTRA-CEL")
-        self.ventana.geometry("900x600")
-        self.ventana.minsize(800, 500)
-        self.ventana.resizable(True, True)
-        self.ventana.configure(bg=COLOR_FONDO_APP)
-        self.ventana.geometry("1000x600") # Tamaño base
-        self.ventana.minsize(900, 600)
+        self.ventana.title("Ultracel Enterprise | Panel Técnico")
         
-        # --- ABRIR MAXIMIZADO SIEMPRE ---
-        try:
-            self.ventana.state('zoomed')
-        except:
-            self.ventana.attributes('-zoomed', True)
+        # --- TRUCO INFALIBLE PARA MAXIMIZAR ---
+        ancho_pantalla = self.ventana.winfo_screenwidth()
+        alto_pantalla = self.ventana.winfo_screenheight()
+        self.ventana.geometry(f"{ancho_pantalla}x{alto_pantalla}+0+0")
+        self.ventana.minsize(1024, 720)
+        
+        try: self.ventana.state('zoomed')
+        except: 
+            try: self.ventana.attributes('-zoomed', True)
+            except: pass
 
+        self.ventana.config(bg=COLOR_FONDO_APP)
         configurar_estilos_ttk()
 
-        try:
-            if getattr(sys, 'frozen', False):
-                base_path = sys._MEIPASS
-            else:
-                base_path = os.path.dirname(__file__)
+        # --- SISTEMA GRID MAESTRO (Adios recortes) ---
+        self.ventana.grid_rowconfigure(0, weight=1)
+        self.ventana.grid_columnconfigure(1, weight=1)
 
-            image_path = os.path.join(base_path, "assets", "fondo.png")
-            fondo_original = Image.open(image_path).resize((900, 600))
-            fondo_blur = fondo_original.filter(ImageFilter.GaussianBlur(radius=12))
-            self.fondo_tk = ImageTk.PhotoImage(fondo_blur)
-
-            self.canvas_fondo = tk.Canvas(self.ventana, width=900, height=600, highlightthickness=0)
-            self.canvas_fondo.pack(fill="both", expand=True)
-            self.canvas_fondo.create_image(0, 0, anchor="nw", image=self.fondo_tk)
-            self._overlay_id = self.canvas_fondo.create_rectangle(0, 0, 900, 600, fill=COLOR_FONDO_APP, stipple="gray25", outline="")
-        except Exception as e:
-            print(f"Error cargando fondo: {e}")
-            self.ventana.configure(bg=COLOR_FONDO_APP)
-            self.canvas_fondo = tk.Canvas(self.ventana, width=900, height=600,
-                                          highlightthickness=0, bg=COLOR_FONDO_APP)
-            self.canvas_fondo.pack(fill="both", expand=True)
-            self._overlay_id = None
-
-        # --- Panel flotante con sombra sutil ---
-        self._shadow_id = self.canvas_fondo.create_rectangle(23, 23, 883, 563,
-                                           fill="#C8D6E5", outline="", stipple="gray12")
-        self.panel_flotante = tk.Frame(self.canvas_fondo, bg=COLOR_FONDO_PANEL,
-                                       highlightbackground=COLOR_BORDE,
-                                       highlightthickness=1)
-        self._panel_win_id = self.canvas_fondo.create_window(450, 300, window=self.panel_flotante,
-                                        anchor="center", width=860, height=560)
-
-        self.menu_visible = False
-
-        #  Boton Hamburguesa estilizado 
-        self.boton_menu = tk.Button(self.panel_flotante, text="  \u2630  Menu  ",
-                                    font=FUENTE_MENU, bg=COLOR_PRIMARIO,
-                                    fg=COLOR_TEXTO_BLANCO, relief="flat",
-                                    cursor="hand2", bd=0, padx=10, pady=4,
-                                    activebackground=COLOR_MENU_HOVER,
-                                    activeforeground=COLOR_TEXTO_BLANCO,
-                                    command=self.toggle_menu)
-        self.boton_menu.place(x=10, y=10)
-
-        #  Menu lateral 
-        self.menu_lateral = tk.Frame(self.canvas_fondo, bg=COLOR_MENU_BG, width=0)
-        self.menu_lateral.place(x=0, y=0, relheight=1)
+        # Ejemplo de cómo debe quedar:
+        self.menu_lateral = tk.Frame(self.ventana, bg=COLOR_MENU_BG, width=280) # <-- AQUÍ EL 280
+        self.menu_lateral.grid(row=0, column=0, sticky="nsew")
         self.menu_lateral.pack_propagate(False)
+
+        # PANEL DINÁMICO
+        self.panel_dinamico = tk.Frame(self.ventana, bg=COLOR_FONDO_APP)
+        self.panel_dinamico.grid(row=0, column=1, sticky="nsew")
+
         self.crear_menu_lateral()
-
-        # Panel dinamico (contenido principal) 
-        self.panel_dinamico = tk.Frame(self.panel_flotante, bg=COLOR_FONDO_PANEL)
-        self.panel_dinamico.place(x=10, y=60, relwidth=1.0, relheight=1.0, width=-20, height=-70)
-
-        # Responsividad 
-        self.canvas_fondo.bind("<Configure>", self._on_resize)
-
         self.cargar_pendientes()
+        
         self.ventana.mainloop()
 
-    #  METODOS DE LA CLASE 
-
-    def _on_resize(self, event):
-        """Actualiza los elementos del canvas al redimensionar la ventana."""
-        w = event.width
-        h = event.height
-        # Overlay de fondo
-        if hasattr(self, '_overlay_id') and self._overlay_id:
-            self.canvas_fondo.coords(self._overlay_id, 0, 0, w, h)
-        # Sombra del panel
-        margen = 20
-        self.canvas_fondo.coords(self._shadow_id, margen + 3, margen + 3, w - margen + 3, h - margen + 3)
-        # Panel flotante centrado
-        self.canvas_fondo.coords(self._panel_win_id, w / 2, h / 2)
-        self.canvas_fondo.itemconfigure(self._panel_win_id, width=w - margen * 2, height=h - margen * 2)
-
-    def conectar_bd(self):
-        try:
-            return mysql.connector.connect(host="localhost",user="root",password="",database="ultracel")
-        except mysql.connector.Error as err:
-            messagebox.showerror("Error de Conexion", f"No se pudo conectar: {err}")
-            return None
-
-    def toggle_menu(self):
-        destino = 180 if not self.menu_visible else 0
-        paso = 12
-        ancho_actual = self.menu_lateral.winfo_width()
-        def animar():
-            nonlocal ancho_actual
-            if self.menu_visible and ancho_actual > destino: ancho_actual -= paso
-            elif not self.menu_visible and ancho_actual < destino: ancho_actual += paso
-            self.menu_lateral.place_configure(width=ancho_actual)
-            if abs(ancho_actual - destino) > paso:
-                self.ventana.after(10, animar)
-            else:
-                self.menu_visible = not self.menu_visible
-                if not self.menu_visible: self.menu_lateral.place_configure(width=0)
-        animar()
-
     def crear_menu_lateral(self):
-        self.menu_lateral.configure(bg=COLOR_MENU_BG)
+        for widget in self.menu_lateral.winfo_children(): widget.destroy()
 
-        # --- Encabezado del menu ---
-        header_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
-        header_frame.pack(fill="x", pady=(25, 5))
+        frame_logo = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
+        frame_logo.pack(fill="x", pady=30)
+        
+        tk.Label(frame_logo, text="ULTRACEL", font=("Segoe UI", 22, "bold"), bg=COLOR_MENU_BG, fg="#FFFFFF").pack()
+        tk.Label(frame_logo, text="PANEL TÉCNICO", font=("Segoe UI", 10, "bold"), bg=COLOR_MENU_BG, fg=COLOR_PRIMARIO).pack(pady=(5, 0))
 
-        tk.Label(header_frame, text="ULTRA-CEL", font=FUENTE_MENU_TITULO,
-                 bg=COLOR_MENU_BG, fg=COLOR_TEXTO_BLANCO).pack()
-        tk.Label(header_frame, text="Panel Tecnico", font=FUENTE_ETIQUETA,
-                 bg=COLOR_MENU_BG, fg=COLOR_ACENTO).pack()
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG, height=20).pack(fill="x")
 
-        # Separador
-        sep_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_HOVER, height=1)
-        sep_frame.pack(fill="x", padx=20, pady=(15, 10))
-
-        # Opciones del menu 
-        opciones = [
-            ("\u2B05  Regresar",       self.toggle_menu),
-            ("\U0001F4DD  Pendientes",  self.cargar_pendientes),
-            ("\U0001F4E6  Inventario",  self.cargar_inventario),
-            ("\U0001FA7A  Diagnostico", self.cargar_diagnostico),
-            ("\U0001F4D1  Reporte",     self.cargar_reporte_material)
-        ]
-
-        for texto, comando in opciones:
-            btn_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
-            btn_frame.pack(fill="x")
-
-            btn = tk.Button(btn_frame, text=texto, anchor="w",
-                            bg=COLOR_MENU_BG, fg=COLOR_TEXTO_BLANCO, relief="flat",
-                            font=FUENTE_MENU, padx=25, pady=12, bd=0,
-                            activebackground=COLOR_MENU_HOVER,
-                            activeforeground=COLOR_TEXTO_BLANCO, cursor="hand2",
-                            command=lambda c=comando, t=texto: [c(), self.toggle_menu() if t != "\u2B05  Regresar" else None])
+        def crear_boton_elegante(texto, comando, color_texto="#D1D5DB", color_hover=COLOR_FONDO_PANEL, color_texto_hover="#FFFFFF"):
+            btn = tk.Button(self.menu_lateral, text=texto, command=comando, bg=COLOR_MENU_BG, fg=color_texto, relief="flat", bd=0, font=("Segoe UI", 11, "bold"), cursor="hand2", activebackground=color_hover, activeforeground=color_texto_hover, anchor="w", padx=15, pady=12)
             btn.pack(fill="x")
+            btn.bind("<Enter>", lambda e: btn.config(bg=color_hover, fg=color_texto_hover))
+            btn.bind("<Leave>", lambda e: btn.config(bg=COLOR_MENU_BG, fg=color_texto))
+            return btn
 
-            # Hover effect
-            def on_enter(e, b=btn, f=btn_frame):
-                b.configure(bg=COLOR_MENU_HOVER)
-                f.configure(bg=COLOR_MENU_HOVER)
-            def on_leave(e, b=btn, f=btn_frame):
-                b.configure(bg=COLOR_MENU_BG)
-                f.configure(bg=COLOR_MENU_BG)
+        # --- SIN EMOJIS ---
+        crear_boton_elegante("Reparaciones Pendientes", self.cargar_pendientes)
+        crear_boton_elegante("Inventario General", self.cargar_inventario)
+        crear_boton_elegante("Nuevo Diagnóstico", self.cargar_diagnostico)
+        crear_boton_elegante("Solicitar Material", self.cargar_reporte_material)
 
-            btn.bind("<Enter>", on_enter)
-            btn.bind("<Leave>", on_leave)
-
-        #  Boton Salir (fijado al fondo) 
-        btn_salir = tk.Button(self.menu_lateral, text="\u23FB  Cerrar Sesion", anchor="center",
-                              bg=COLOR_PELIGRO, fg=COLOR_TEXTO_BLANCO, relief="flat",
-                              font=FUENTE_BOTON, pady=12, bd=0, cursor="hand2",
-                              activebackground=_aclarar_color(COLOR_PELIGRO, 20),
-                              activeforeground=COLOR_TEXTO_BLANCO,
-                              command=self.volver_al_login)
-        btn_salir.place(relx=0, rely=0.92, relwidth=1)
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG).pack(fill="both", expand=True)
+        crear_boton_elegante("Cerrar Sesión", self.volver_al_login, color_texto=COLOR_PELIGRO, color_hover="#DC2626", color_texto_hover="#FFFFFF")
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG, height=20).pack(fill="x")
 
     def limpiar_panel(self):
-        for widget in self.panel_dinamico.winfo_children():
-            widget.destroy()
+        for widget in self.panel_dinamico.winfo_children(): widget.destroy()
 
     def cargar_pendientes(self):
         self.limpiar_panel()
 
-        # --- Encabezado ---
-        header = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_PANEL)
-        header.pack(fill="x", padx=15, pady=(10, 5))
-        tk.Label(header, text="\U0001F4CB Dispositivos Pendientes", font=FUENTE_TITULO, bg=COLOR_FONDO_PANEL, fg=COLOR_PRIMARIO).pack(anchor="w")
-        tk.Label(header, text="Doble clic en una fila para ver los detalles completos o generar diagnóstico.", font=FUENTE_ETIQUETA, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
+        # --- Encabezado sin emojis ---
+        header = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_APP)
+        header.pack(fill="x", padx=40, pady=(30, 5))
+        tk.Label(header, text="Dispositivos Pendientes", font=FUENTE_TITULO, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO).pack(anchor="w")
+        tk.Label(header, text="Doble clic en una fila para ver los detalles completos o generar diagnóstico.", font=FUENTE_CUERPO, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
 
-        tk.Frame(self.panel_dinamico, height=2, bg=COLOR_BORDE).pack(fill="x", padx=15, pady=(5, 5))
+        tk.Frame(self.panel_dinamico, height=1, bg=COLOR_BORDE).pack(fill="x", padx=40, pady=(15, 15))
 
-        # --- Leyenda de Colores (Semáforo) ---
-        legend_frame = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_PANEL)
-        legend_frame.pack(fill="x", padx=15, pady=(0, 10))
+        # --- Leyenda de Colores Dark Mode ---
+        legend_frame = tk.Frame(self.panel_dinamico, bg=COLOR_FONDO_APP)
+        legend_frame.pack(fill="x", padx=40, pady=(0, 10))
         
-        tk.Label(legend_frame, text="Leyenda:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_OSCURO).pack(side="left", padx=(0, 10))
-        tk.Label(legend_frame, text="🟡 Recibido (Sin Diagnóstico)", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#d35400").pack(side="left", padx=10)
-        tk.Label(legend_frame, text="🔵 En Reparación (Diagnosticado)", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#0984e3").pack(side="left", padx=10)
-        tk.Label(legend_frame, text="🟠 Esperando Aprobación", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_PANEL, fg="#e17055").pack(side="left", padx=10)
+        tk.Label(legend_frame, text="Leyenda:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO).pack(side="left", padx=(0, 10))
+        tk.Label(legend_frame, text="Recibido (Sin Diagnóstico)", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_APP, fg="#FBBF24").pack(side="left", padx=10)
+        tk.Label(legend_frame, text="En Reparación", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_APP, fg="#60A5FA").pack(side="left", padx=10)
+        tk.Label(legend_frame, text="Esperando Aprobación", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO_APP, fg="#F87171").pack(side="left", padx=10)
 
         # --- Treeview ---
         tree_frame = tk.Frame(self.panel_dinamico, bg=COLOR_BORDE, bd=0)
-        tree_frame.pack(pady=0, padx=15, fill="both", expand=True)
+        tree_frame.pack(pady=0, padx=40, fill="both", expand=True)
 
-        # Agregamos la columna "Estado"
         self.tree = ttk.Treeview(tree_frame, columns=("ID", "Dispositivo", "Estado", "Problema Reportado"), show="headings", height=15, style="Custom.Treeview")
         self.tree.heading("ID", text="ID Orden")
         self.tree.heading("Dispositivo", text="Dispositivo")
@@ -368,13 +199,12 @@ class PanelTecnico:
         scrollbar.pack(side="right", fill="y", padx=(0, 1), pady=1)
         self.tree.pack(fill="both", expand=True, padx=1, pady=1)
 
-        # --- Configuración de Colores por Estado ---
-        # Usamos colores pastel para que el texto negro siga siendo muy fácil de leer
-        self.tree.tag_configure('Recibido', background='#ffeaa7')             # Amarillo pastel
-        self.tree.tag_configure('En Reparación', background='#74b9ff')        # Azul pastel
-        self.tree.tag_configure('Esperando Aprobación', background='#fab1a0') # Salmón / Naranja
-        self.tree.tag_configure('En Diagnóstico', background='#81ecec')       # Turquesa pastel
-        self.tree.tag_configure('default', background=COLOR_FILA_PAR)
+        # --- Configuración de Colores por Estado (Adaptado a Dark Mode) ---
+        self.tree.tag_configure('Recibido', background='#78350F', foreground='white')             
+        self.tree.tag_configure('En Reparación', background='#1E3A8A', foreground='white')        
+        self.tree.tag_configure('Esperando Aprobación', background='#7F1D1D', foreground='white') 
+        self.tree.tag_configure('En Diagnóstico', background='#134E4A', foreground='white')       
+        self.tree.tag_configure('default', background=COLOR_FILA_PAR, foreground=COLOR_TEXTO_OSCURO)
 
         # --- Carga de Datos ---
         mi_taller_id = obtener_taller_id()
@@ -385,31 +215,24 @@ class PanelTecnico:
 
         try:
             url_api = "https://www.ultracel.lat/api/reparaciones/pendientes"
-            # 🛡️ Agregamos los headers para que Laravel jamás nos devuelva HTML
             headers = {"Accept": "application/json"}
             respuesta = requests.post(url_api, json={"taller_id": mi_taller_id}, headers=headers)
             
             if respuesta.status_code == 200:
                 reparaciones = respuesta.json().get('reparaciones', [])
                 for rep in reparaciones:
-                    # Obtenemos el estado; si no viene, le ponemos 'default'
                     estado_real = rep.get('estado', 'default')
-                    
-                    # Verificamos si tenemos un color configurado para ese estado, si no, usamos el default
                     tag_color = estado_real if estado_real in ['Recibido', 'En Reparación', 'Esperando Aprobación', 'En Diagnóstico'] else 'default'
                     
                     self.tree.insert("", "end", values=(
                         rep.get('id_reparacion'), 
                         rep.get('dispositivo'),
                         estado_real,  
-                        rep.get('problema_reportado') # 🔙 Revertido a la normalidad absoluta
+                        rep.get('problema_reportado')
                     ), tags=(tag_color,))
-            else:
-                print(f"🚨 Error al cargar pendientes: {respuesta.status_code} - {respuesta.text}")
         except requests.exceptions.ConnectionError:
-            messagebox.showerror("Error", "Sin conexión al servidor.")
+            pass
 
-        # VINCULAMOS LA FUNCIÓN RESCATADA
         self.tree.bind("<Double-1>", self.mostrar_detalles_reparacion)
 
     # --- LA FUNCIÓN RESCATADA Y CONECTADA A LARAVEL ---

@@ -3,22 +3,27 @@ import sys
 import random
 import string
 import tkinter as tk
+import customtkinter as ctk
 from tkinter import messagebox, ttk, filedialog
 from PIL import Image, ImageTk
 import pandas as pd
 import requests 
 import json
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
 
 
 # --- PALETA DE COLORES "ENTERPRISE" ---
-COLOR_BARRA_LATERAL = "#001f3f"  # Azul Marino Oscuro
-COLOR_CUERPO        = "#f4f7f9"  # Gris muy claro
-COLOR_PRIMARIO      = "#005187"  # Azul Corporativo
-COLOR_ACCENTO       = "#00a8ff"  # Azul Brillante
-COLOR_TEXTO         = "#2c3e50"  # Gris Oscuro
-COLOR_BLANCO        = "#ffffff"
-COLOR_TEXTO_GRIS    = "#8395A7"  # Texto secundario para el buscador
-COLOR_BORDE         = "#DFE6E9"
+# --- PALETA DE COLORES "ENTERPRISE DARK MODE" ---
+COLOR_BARRA_LATERAL = "#111827"  # Gris casi negro (Sidebar)
+COLOR_CUERPO        = "#1F2937"  # Fondo principal oscuro
+COLOR_PRIMARIO      = "#3B82F6"  # Azul neón (Botones y acentos)
+COLOR_ACCENTO       = "#2563EB"  # Azul brillante hover
+COLOR_TEXTO         = "#F3F4F6"  # Texto principal (Blanco humo)
+COLOR_BLANCO        = "#374151"  # Usaremos este gris medio para las "Tarjetas"
+COLOR_TEXTO_GRIS    = "#9CA3AF"  # Texto secundario
+COLOR_BORDE         = "#4B5563"  # Líneas divisorias
 
 def obtener_taller_id():
     """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
@@ -41,37 +46,37 @@ class PanelAdministrador:
         self.ventana = tk.Tk()
         self.ventana.title("Ultracel Enterprise | Panel de Control")
         
-        # 1. Configuramos el color de fondo primero
-        self.ventana.configure(bg=COLOR_CUERPO)
-
-        # 2. Establecemos un tamaño MÍNIMO para que no se rompa el diseño en pantallas chicas
+        # --- TRUCO INFALIBLE PARA MAXIMIZAR EN CUALQUIER PC ---
+        ancho_pantalla = self.ventana.winfo_screenwidth()
+        alto_pantalla = self.ventana.winfo_screenheight()
+        self.ventana.geometry(f"{ancho_pantalla}x{alto_pantalla}+0+0")
         self.ventana.minsize(1024, 720)
         
-        # 3. LA MAGIA: Intentar abrir maximizado directamente
-        # En Windows usa 'zoomed', en Linux/Mac usa los attributes
-        try:
-            self.ventana.state('zoomed') 
-        except:
-            try:
-                self.ventana.attributes('-zoomed', True)
-            except:
-                # Si todo falla (como en algunos gestores de ventana), 
-                # usamos el tamaño máximo de la pantalla disponible
-                width = self.ventana.winfo_screenwidth()
-                height = self.ventana.winfo_screenheight()
-                self.ventana.geometry(f"{width}x{height}+0+0")
+        # Refuerzo de maximizado por orden del SO
+        try: self.ventana.state('zoomed') 
+        except: 
+            try: self.ventana.attributes('-zoomed', True)
+            except: pass
 
-        # Contenedores principales
-        self.sidebar = tk.Frame(self.ventana, bg=COLOR_BARRA_LATERAL, width=260)
-        self.sidebar.pack(side="left", fill="y")
-        self.sidebar.pack_propagate(False)
+        self.ventana.config(bg=COLOR_CUERPO)
 
+        # --- EL ANTÍDOTO PARA LOS CORTES: SISTEMA GRID MAESTRO ---
+        self.ventana.grid_rowconfigure(0, weight=1)
+        self.ventana.grid_columnconfigure(1, weight=1)
+
+        # BARRA LATERAL (Izquierda)
+        self.barra_lateral = tk.Frame(self.ventana, bg=COLOR_BARRA_LATERAL, width=280)
+        self.barra_lateral.grid(row=0, column=0, sticky="nsew")
+        self.barra_lateral.pack_propagate(False) # ¡ESTO EVITA QUE SE RECORTE!
+
+        # ÁREA PRINCIPAL (Derecha)
         self.main_content = tk.Frame(self.ventana, bg=COLOR_CUERPO)
-        self.main_content.pack(side="right", fill="both", expand=True)
+        self.main_content.grid(row=0, column=1, sticky="nsew")
 
         self.setup_sidebar()
-        self.crear_panel_principal() 
-
+        self.crear_panel_principal()
+        
+        # 🚀 ¡EL MOTOR QUE MANTIENE LA VENTANA ABIERTA!
         self.ventana.mainloop()
 
 
@@ -240,73 +245,97 @@ class PanelAdministrador:
 
     # --- CONFIGURACIÓN DE BARRA LATERAL ---
     def setup_sidebar(self):
-        # Logo
+        # Limpiar contenido si se recarga
+        for widget in self.barra_lateral.winfo_children():
+            widget.destroy()
+
+        # Logo / Branding
+        frame_logo = tk.Frame(self.barra_lateral, bg="#111827")
+        frame_logo.pack(fill="x", pady=30)
+        
         try:
             logo_path = os.path.join(base_path, "assets", "logo_ultracel.png")
-            logo_img = Image.open(logo_path).resize((100, 100))
-            self.logo_tk = ImageTk.PhotoImage(logo_img)
-            tk.Label(self.sidebar, image=self.logo_tk, bg=COLOR_BARRA_LATERAL).pack(pady=30)
+            img = Image.open(logo_path).resize((80, 80), Image.Resampling.LANCZOS)
+            self.logo_img = ImageTk.PhotoImage(img)
+            tk.Label(frame_logo, image=self.logo_img, bg="#111827").pack()
         except:
-            tk.Label(self.sidebar, text="panel", font=("Arial", 20, "bold"), 
-                     bg=COLOR_BARRA_LATERAL, fg="white").pack(pady=30)
+            tk.Label(frame_logo, text="ULTRACEL", font=("Segoe UI", 22, "bold"), bg="#111827", fg="#FFFFFF").pack()
 
-        # Estilo de botones del menú
-        btn_opts = {
-            "font": ("Segoe UI", 11),
-            "bg": COLOR_BARRA_LATERAL,
-            "fg": "white",
-            "activebackground": COLOR_PRIMARIO,
-            "activeforeground": "white",
-            "relief": "flat",
-            "anchor": "w",
-            "padx": 25,
-            "pady": 15,
-            "cursor": "hand2"
-        }
+        tk.Label(frame_logo, text="PANEL GERENCIAL", font=("Segoe UI", 10, "bold"), bg="#111827", fg="#3B82F6").pack(pady=(5, 0))
 
-        # Botones de navegación
-        tk.Button(self.sidebar, text="🏠  Inicio ", command=self.crear_panel_principal, **btn_opts).pack(fill="x")
-        tk.Button(self.sidebar, text="👤  Agregar Nuevo Usuario", command=self.agregar_usuarios, **btn_opts).pack(fill="x")
-        tk.Button(self.sidebar, text="🔒  Administrar Usuarios", command=self.admin_usuarios, **btn_opts).pack(fill="x")
-        tk.Button(self.sidebar, text="📊  Reportes de Material", command=self.ver_reportes_material, **btn_opts).pack(fill="x")
+        # --- FÁBRICA DE BOTONES NATIVOS PERO ELEGANTES ---
+        def crear_boton_elegante(texto, comando, color_texto="#D1D5DB", color_hover="#1F2937", color_texto_hover="#FFFFFF"):
+            btn = tk.Button(self.barra_lateral, text=texto, command=comando,
+                            bg="#111827", fg=color_texto, relief="flat", bd=0,
+                            font=("Segoe UI", 11, "bold"), cursor="hand2",
+                            activebackground=color_hover, activeforeground=color_texto_hover,
+                            anchor="w", padx=15, pady=12)
+            btn.pack(fill="x")
+            
+            # Efecto Hover (Cambia de color al pasar el mouse)
+            btn.bind("<Enter>", lambda e: btn.config(bg=color_hover, fg=color_texto_hover))
+            btn.bind("<Leave>", lambda e: btn.config(bg="#111827", fg=color_texto))
+            return btn
 
-        # Botón Cerrar Sesión
+        # Espaciador
+        tk.Frame(self.barra_lateral, bg="#111827", height=20).pack(fill="x")
+
+       
+        # Botones sin emojis, 100% sobrios
+        crear_boton_elegante("Inicio (Dashboard)", self.crear_panel_principal)
+        crear_boton_elegante("Analíticas y Rendimiento", self.mostrar_analiticas) # 🚀 ¡EL NUEVO MÓDULO!
+        crear_boton_elegante("Registrar Usuario", self.agregar_usuarios)
+        crear_boton_elegante("Gestión de Usuarios", self.admin_usuarios)
+        crear_boton_elegante("Reportes de Material", self.ver_reportes_material)
+        crear_boton_elegante("Corte de Caja", self.mostrar_corte_caja)
+
+        # Contenedor para empujar el botón de Cerrar Sesión hasta abajo
+        tk.Frame(self.barra_lateral, bg="#111827").pack(fill="both", expand=True)
+
         def confirmar_salida():
-            if messagebox.askyesno("Confirmación", "¿Deseas cerrar sesión y volver al inicio?"):
+            if messagebox.askyesno("Confirmación", "¿Deseas cerrar sesión?"):
                 self.ventana.destroy()
-                
-                # Lanzamos el Login de nuevo
                 import subprocess
-                import sys
                 subprocess.Popen([sys.executable, "Login.py"])
 
-        tk.Button(self.sidebar, text="⏻  Cerrar Sesión", bg="#c0392b", fg="white", 
-                  font=("Segoe UI", 11, "bold"), relief="flat", command=confirmar_salida).pack(side="bottom", fill="x", pady=20)
-
+        # Botón de Cerrar Sesión (Rojo oscuro nativo)
+        crear_boton_elegante("Cerrar Sesión", confirmar_salida, color_texto="#EF4444", color_hover="#DC2626", color_texto_hover="#FFFFFF")
+        
+        # Espaciado final abajo
+        tk.Frame(self.barra_lateral, bg="#111827", height=20).pack(fill="x")
+    # --- 1. VISTA: DASHBOARD PRINCIPAL ---
     # --- 1. VISTA: DASHBOARD PRINCIPAL ---
     def crear_panel_principal(self):
         for w in self.main_content.winfo_children(): w.destroy()
         
-        header = tk.Frame(self.main_content, bg=COLOR_BLANCO, height=80)
+        # Encabezado Dark
+        header = tk.Frame(self.main_content, bg=COLOR_BARRA_LATERAL, height=80)
         header.pack(fill="x")
         tk.Label(header, text="Panel de Control Principal", font=("Segoe UI Semilight", 22), 
-                 bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(side="left", padx=40, pady=20)
+                 bg=COLOR_BARRA_LATERAL, fg=COLOR_TEXTO).pack(side="left", padx=40, pady=20)
 
         dash_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
         dash_frame.pack(fill="both", expand=True, padx=40, pady=40)
 
-        # Tarjeta de Corte de Caja
-        card = tk.Frame(dash_frame, bg=COLOR_BLANCO, width=320, height=200, highlightthickness=1, highlightbackground="#d1d9e0")
+        # Tarjeta de Corte de Caja (Estilo Dark)
+        card = tk.Frame(dash_frame, bg=COLOR_BLANCO, width=320, height=200, highlightthickness=1, highlightbackground=COLOR_BORDE)
         card.pack(side="left", padx=10, anchor="n")
         card.pack_propagate(False)
 
         tk.Label(card, text="Corte de Caja", font=("Segoe UI", 14, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=(30, 10))
-        tk.Label(card, text="Generar el reporte de ventas del día.", font=("Segoe UI", 10), bg=COLOR_BLANCO, fg="#7f8c8d").pack(pady=5)
+        tk.Label(card, text="Generar el reporte de ventas del día.", font=("Segoe UI", 10), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(pady=5)
         
-        tk.Button(card, text="EJECUTAR CORTE", font=("Segoe UI", 10, "bold"), bg=COLOR_ACCENTO, 
-                  fg="white", relief="flat", padx=20, cursor="hand2", 
-                  command=self.mostrar_corte_caja).pack(pady=20)
+        # Botón moderno con Hover nativo
+        btn_corte = tk.Button(card, text="EJECUTAR CORTE", font=("Segoe UI", 10, "bold"), bg=COLOR_PRIMARIO, 
+                  fg="white", relief="flat", padx=20, pady=8, cursor="hand2", activebackground=COLOR_ACCENTO, activeforeground="white",
+                  command=self.mostrar_corte_caja)
+        btn_corte.pack(pady=20)
+        
+        # Efecto hover manual para el botón
+        btn_corte.bind("<Enter>", lambda e: btn_corte.config(bg=COLOR_ACCENTO))
+        btn_corte.bind("<Leave>", lambda e: btn_corte.config(bg=COLOR_PRIMARIO))
 
+    # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
     # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
     def admin_usuarios(self):
         for w in self.main_content.winfo_children(): w.destroy()
@@ -335,14 +364,12 @@ class PanelAdministrador:
             # Limpiamos las tarjetas anteriores
             for w in scrollable_frame.winfo_children(): w.destroy()
             
-            # 1. Sacamos el ID del taller de nuestra licencia
             mi_taller_id = obtener_taller_id()
             if not mi_taller_id:
                 messagebox.showerror("Error", "No se encontró la licencia. Activa el software primero.")
                 return
 
             try:
-                # 2. Le pedimos a Laravel la lista de empleados de este taller
                 url_api = "https://www.ultracel.lat/api/empleados"
                 respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
                 
@@ -350,14 +377,17 @@ class PanelAdministrador:
                     datos = respuesta.json()
                     empleados = datos.get('empleados', [])
                     
-                    # 3. Dibujamos las tarjetas con la información que nos dio Laravel
                     for u in empleados:
-                        card = tk.Frame(scrollable_frame, bg=COLOR_BLANCO, pady=15, highlightthickness=1, highlightbackground="#dfe6e9")
+                        # 🛡️ FILTRO ANTI-CLIENTES: Si es cliente, lo ignoramos por completo
+                        rol_usuario = str(u.get('rol', '')).lower()
+                        if rol_usuario == 'cliente':
+                            continue
+                        
+                        # Dibujamos las tarjetas solo para los empleados reales
+                        card = tk.Frame(scrollable_frame, bg=COLOR_BLANCO, pady=15, highlightthickness=1, highlightbackground=COLOR_BORDE)
                         card.pack(fill="x", pady=8)
                         
-                        # NOTA: Ajusté los nombres de las variables (como 'name' y 'email') 
-                        # para que coincidan con la estructura estándar de la tabla 'users' de Laravel
-                        estado = u.get('permitido', 1) # Si no existe, asume 1 (verde)
+                        estado = u.get('permitido', 1)
                         status_color = "#27ae60" if estado else "#e74c3c"
                         tk.Frame(card, bg=status_color, width=6).pack(side="left", fill="y")
 
@@ -366,21 +396,21 @@ class PanelAdministrador:
                         
                         nombre = u.get('name', 'Usuario sin nombre')
                         correo = u.get('email', 'Sin correo')
-                        rol = u.get('rol', 'Sin Rol')
                         id_u = u.get('id')
 
-                        tk.Label(info, text=nombre, font=("Segoe UI", 13, "bold"), bg=COLOR_BLANCO).pack(anchor="w")
-                        tk.Label(info, text=f"Rol: {rol}  |  Usuario: @{correo}", font=("Segoe UI", 10), 
-                                 bg=COLOR_BLANCO, fg="#7f8c8d").pack(anchor="w")
+                        tk.Label(info, text=nombre, font=("Segoe UI", 13, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w")
+                        tk.Label(info, text=f"Rol: {rol_usuario.capitalize()}  |  Usuario: @{correo}", font=("Segoe UI", 10), 
+                                 bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
 
-                        # Botón de gestionar
-                        tk.Button(card, text="⚙️ Gestionar", font=("Segoe UI", 10), bg="#f1f2f6", relief="flat", padx=20, 
-                                  command=lambda id_seleccionado=id_u: self.editar_usuario_modal(id_seleccionado)).pack(side="right", padx=30)
+                        # Botón de gestionar (modernizado sin emojis)
+                        btn_gestionar = tk.Button(card, text="Gestionar", font=("Segoe UI", 10, "bold"), bg=COLOR_CUERPO, fg=COLOR_TEXTO, relief="flat", padx=20, cursor="hand2", command=lambda id_seleccionado=id_u: self.editar_usuario_modal(id_seleccionado))
+                        btn_gestionar.pack(side="right", padx=30)
+                        
                 else:
                     messagebox.showerror("Error API", "No se pudo cargar la lista de empleados.")
                     
             except requests.exceptions.ConnectionError:
-                messagebox.showerror("Error de Red", "Asegúrate de que Docker y Laravel estén encendidos.")
+                messagebox.showerror("Error de Red", "Asegúrate de tener conexión a Internet.")
 
         cargar_cards()
 
@@ -676,6 +706,167 @@ class PanelAdministrador:
         if path:
             df.to_excel(path, index=False)
             messagebox.showinfo("Guardado", "El reporte se ha exportado con éxito.")
+
+
+ 
+    # --- 6. VISTA: ANALÍTICAS Y RENDIMIENTO (GRÁFICAS REALES) ---
+    def mostrar_analiticas(self):
+        for w in self.main_content.winfo_children(): w.destroy()
+        
+        # 1. OBTENER DATOS DE LA API (Asegurando el candado SaaS)
+        mi_taller_id = obtener_taller_id()
+        if not mi_taller_id:
+            return messagebox.showerror("Error", "No hay licencia activa.")
+            
+        try:
+            url_api = "https://www.ultracel.lat/api/dashboard/analiticas"
+            respuesta = requests.post(url_api, json={"taller_id": mi_taller_id})
+            if respuesta.status_code == 200:
+                datos = respuesta.json()
+            else:
+                return messagebox.showerror("Error", "Fallo al obtener métricas del servidor.")
+        except requests.exceptions.ConnectionError:
+            return messagebox.showerror("Error de Red", "Sin conexión al servidor.")
+
+        # Extraer los datos del JSON
+        ventas_hoy = f"${datos['kpis']['ventas_hoy']}"
+        recibidos_hoy = str(datos['kpis']['recibidos_hoy'])
+        entregados_hoy = str(datos['kpis']['entregados_hoy'])
+        
+        dias_v = datos['grafica_ventas']['dias']
+        ingresos = datos['grafica_ventas']['ingresos']
+        
+        labels_d = datos['grafica_dona']['labels']
+        sizes_d = datos['grafica_dona']['sizes']
+        
+        productos = datos['grafica_top']['productos']
+        cantidades = datos['grafica_top']['cantidades']
+
+        # Si todo está en cero (taller nuevo o sin reparaciones), evitamos que la dona explote
+        if sum(sizes_d) == 0:
+            sizes_d = [1]
+            labels_d = ['Sin Datos']
+        
+        # --- ENCABEZADO ---
+        header = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        header.pack(fill="x", padx=40, pady=(25, 10))
+        tk.Label(header, text="Inteligencia de Negocio", font=("Segoe UI", 24, "bold"), 
+                 bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
+        
+        # Contenedor para alinear el estado de la API a la derecha
+        kpi_frame = tk.Frame(header, bg=COLOR_CUERPO)
+        kpi_frame.pack(side="right", pady=10)
+        tk.Label(kpi_frame, text="🟢 Servidor API Conectado", font=("Segoe UI", 10, "bold"), bg=COLOR_CUERPO, fg=COLOR_PRIMARIO).pack()
+
+        # --- TARJETAS SUPERIORES (NUEVO: KPIs DE HOY PARA EL ADMIN) ---
+        cards_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        cards_frame.pack(fill="x", padx=40, pady=(0, 15))
+
+        def crear_tarjeta(parent, titulo, valor, color_borde):
+            card = tk.Frame(parent, bg=COLOR_BLANCO, highlightthickness=2, highlightbackground=color_borde, padx=20, pady=15)
+            card.pack(side="left", fill="x", expand=True, padx=(0, 15) if titulo != "Equipos Entregados" else 0)
+            tk.Label(card, text=titulo, font=("Segoe UI", 11, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
+            tk.Label(card, text=valor, font=("Segoe UI", 24, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", pady=(5, 0))
+
+        crear_tarjeta(cards_frame, "Ventas de Hoy", ventas_hoy, "#10B981") # Verde
+        crear_tarjeta(cards_frame, "Equipos Recibidos", recibidos_hoy, "#F59E0B") # Amarillo
+        crear_tarjeta(cards_frame, "Equipos Entregados", entregados_hoy, COLOR_PRIMARIO) # Azul
+
+        # --- CONTENEDOR PRINCIPAL DE GRÁFICAS (SISTEMA GRID) ---
+        graficas_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        graficas_frame.pack(fill="both", expand=True, padx=40, pady=10)
+        
+        graficas_frame.grid_columnconfigure(0, weight=2) # Columna izquierda más ancha
+        graficas_frame.grid_columnconfigure(1, weight=1) # Columna derecha
+        graficas_frame.grid_rowconfigure(0, weight=1)
+        graficas_frame.grid_rowconfigure(1, weight=1)
+
+        # FUNCIÓN MAESTRA PARA ESTILIZAR GRÁFICAS DARK MODE
+        def aplicar_dark_mode(fig, ax):
+            fig.patch.set_facecolor(COLOR_BLANCO) 
+            ax.set_facecolor(COLOR_BLANCO)        
+            ax.spines['bottom'].set_color(COLOR_BORDE)
+            ax.spines['left'].set_color(COLOR_BORDE)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.tick_params(axis='x', colors=COLOR_TEXTO_GRIS)
+            ax.tick_params(axis='y', colors=COLOR_TEXTO_GRIS)
+            ax.title.set_color(COLOR_TEXTO)
+
+        # ---------------------------------------------------------
+        # GRÁFICA 1: TENDENCIA DE VENTAS (Línea de Área)
+        # ---------------------------------------------------------
+        frame_g1 = tk.Frame(graficas_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
+        frame_g1.grid(row=0, column=0, sticky="nsew", padx=(0, 15), pady=(0, 15))
+        
+        tk.Label(frame_g1, text="Flujo de Ventas (Últimos 7 días)", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", padx=15, pady=(15, 0))
+
+        fig1 = Figure(figsize=(5, 2.5), dpi=100)
+        ax1 = fig1.add_subplot(111)
+        aplicar_dark_mode(fig1, ax1)
+        
+        # Inyectamos los datos reales de la BD
+        ax1.plot(dias_v, ingresos, color=COLOR_PRIMARIO, marker='o', linewidth=3, markersize=8)
+        ax1.fill_between(dias_v, ingresos, color=COLOR_PRIMARIO, alpha=0.2)
+        ax1.set_ylim(bottom=0)
+
+        canvas1 = FigureCanvasTkAgg(fig1, master=frame_g1)
+        canvas1.draw()
+        canvas1.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+
+        # ---------------------------------------------------------
+        # GRÁFICA 2: ESTADO DEL TALLER (Gráfica de Dona)
+        # ---------------------------------------------------------
+        frame_g2 = tk.Frame(graficas_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
+        frame_g2.grid(row=0, column=1, sticky="nsew", pady=(0, 15))
+        
+        tk.Label(frame_g2, text="Estado de Reparaciones", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", padx=15, pady=(15, 0))
+
+        fig2 = Figure(figsize=(3, 2.5), dpi=100)
+        ax2 = fig2.add_subplot(111)
+        aplicar_dark_mode(fig2, ax2)
+        
+        colores_d = ["#10B981", "#3B82F6", "#F59E0B"] # Verde (Listos), Azul (Taller), Amarillo (Espera)
+        
+        # Inyectamos los datos reales y dibujamos la dona
+        ax2.pie(sizes_d, labels=labels_d, colors=colores_d, autopct='%1.1f%%', startangle=90, 
+                textprops={'color': COLOR_TEXTO_GRIS, 'weight': 'bold'},
+                wedgeprops={'linewidth': 2, 'edgecolor': COLOR_BLANCO})
+        
+        # Círculo central para hacer el efecto de Dona
+        import matplotlib.pyplot as plt
+        centro_dona = plt.Circle((0,0), 0.60, fc=COLOR_BLANCO)
+        ax2.add_artist(centro_dona)
+        ax2.axis('equal') 
+
+        canvas2 = FigureCanvasTkAgg(fig2, master=frame_g2)
+        canvas2.draw()
+        canvas2.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+
+        # ---------------------------------------------------------
+        # GRÁFICA 3: TOP INVENTARIO (Barras Horizontales)
+        # ---------------------------------------------------------
+        frame_g3 = tk.Frame(graficas_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
+        frame_g3.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        
+        tk.Label(frame_g3, text="Top 5 Refacciones y Productos más Consumidos", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", padx=15, pady=(15, 0))
+
+        fig3 = Figure(figsize=(8, 2.5), dpi=100)
+        ax3 = fig3.add_subplot(111)
+        aplicar_dark_mode(fig3, ax3)
+        
+        # Invertimos las listas para que el #1 quede hasta arriba en la gráfica horizontal
+        productos.reverse()
+        cantidades.reverse()
+        
+        # Dibujamos las barras con los datos reales
+        ax3.barh(productos, cantidades, color="#8B5CF6", height=0.6) # Morado Enterprise
+        
+        canvas3 = FigureCanvasTkAgg(fig3, master=frame_g3)
+        canvas3.draw()
+        canvas3.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+
+
 
     def cerrar_sesion(self):
         if messagebox.askyesno("Cerrar Sesión", "¿Estás seguro de que deseas salir y volver al Login?"):

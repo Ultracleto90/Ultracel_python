@@ -5,136 +5,84 @@ import os
 import sys
 import requests
 import json
-# --- PALETA DE COLORES PROFESIONAL ---
-COLOR_PRIMARIO       = "#1B2A4A"   # Azul marino oscuro (header, acentos fuertes)
-COLOR_SECUNDARIO     = "#2E86DE"   # Azul vibrante (botones principales)
-COLOR_ACENTO         = "#54A0FF"   # Azul claro (hover, acentos suaves)
-COLOR_EXITO          = "#10AC84"   # Verde elegante (guardar, confirmar)
-COLOR_PELIGRO        = "#EE5A24"   # Naranja-rojo (eliminar, cerrar sesion)
-COLOR_ADVERTENCIA    = "#F6B93B"   # Amarillo dorado (advertencias)
-COLOR_TEXTO_OSCURO   = "#2C3A4B"   # Texto principal
-COLOR_TEXTO_GRIS     = "#8395A7"   # Texto secundario / subtitulos
-COLOR_TEXTO_BLANCO   = "#FFFFFF"   # Texto sobre fondos oscuros
-COLOR_FONDO_APP      = "#F1F2F6"   # Fondo general de la app
-COLOR_FONDO_PANEL    = "#FFFFFF"   # Fondo del panel flotante
-COLOR_FONDO_SECCION  = "#F8F9FA"   # Fondo sutil para secciones internas
-COLOR_BORDE          = "#DFE6E9"   # Bordes sutiles
-COLOR_MENU_BG        = "#1B2A4A"   # Fondo del menu lateral
-COLOR_MENU_HOVER     = "#2E4066"   # Hover en el menu lateral
-COLOR_FILA_PAR       = "#FFFFFF"   # Filas pares en tablas
-COLOR_FILA_IMPAR     = "#F0F6FF"   # Filas impares en tablas (azul muy tenue)
-COLOR_SELECCION      = "#D6EAF8"   # Color de seleccion en tablas
-COLOR_NOTA_VENTA_BG  = "#EAF2F8"   # Fondo nota de venta
+# --- PALETA DE COLORES ENTERPRISE (DARK MODE) ---
+COLOR_PRIMARIO       = "#3B82F6"   # Azul Neón
+COLOR_SECUNDARIO     = "#2563EB"   # Azul Intermedio
+COLOR_ACENTO         = "#1D4ED8"   # Azul Fuerte
+COLOR_EXITO          = "#10B981"   # Verde
+COLOR_PELIGRO        = "#EF4444"   # Rojo
+COLOR_ADVERTENCIA    = "#F59E0B"   # Amarillo
+COLOR_TEXTO_OSCURO   = "#F3F4F6"   # ENGAÑO: Lo llamamos oscuro pero es BLANCO HUMO
+COLOR_TEXTO_GRIS     = "#9CA3AF"   # Gris claro
+COLOR_TEXTO_BLANCO   = "#FFFFFF"   # Blanco puro
+COLOR_FONDO_APP      = "#111827"   # Fondo principal (Gris muy oscuro)
+COLOR_FONDO_PANEL    = "#1F2937"   # Fondo tarjetas
+COLOR_FONDO_SECCION  = "#1F2937"   
+COLOR_BORDE          = "#374151"   # Bordes oscuros
+COLOR_MENU_BG        = "#111827"   # Sidebar
+COLOR_MENU_HOVER     = "#1F2937"
+COLOR_FILA_PAR       = "#1F2937"   # Tabla Dark
+COLOR_FILA_IMPAR     = "#374151"   # Tabla Dark 2
+COLOR_SELECCION      = "#3B82F6"
+COLOR_NOTA_VENTA_BG  = "#1F2937"   # Fondo nota de venta (Igualado a las tarjetas)
+
 # --- FUENTES ---
-FUENTE_TITULO        = ("Segoe UI", 16, "bold")
-FUENTE_SUBTITULO     = ("Segoe UI", 12, "bold")
-FUENTE_CUERPO        = ("Segoe UI", 10)
-FUENTE_CUERPO_BOLD   = ("Segoe UI", 10, "bold")
+FUENTE_TITULO        = ("Segoe UI", 24, "bold")
+FUENTE_SUBTITULO     = ("Segoe UI", 16, "bold")
+FUENTE_CUERPO        = ("Segoe UI", 11)
+FUENTE_CUERPO_BOLD   = ("Segoe UI", 11, "bold")
 FUENTE_BOTON         = ("Segoe UI", 11, "bold")
 FUENTE_MENU          = ("Segoe UI", 11)
 FUENTE_MENU_TITULO   = ("Segoe UI", 15, "bold")
 FUENTE_ETIQUETA      = ("Segoe UI", 9)
-FUENTE_TABLA         = ("Segoe UI", 9)
-FUENTE_TABLA_HEAD    = ("Segoe UI", 10, "bold")
+FUENTE_TABLA         = ("Segoe UI", 10)
+FUENTE_TABLA_HEAD    = ("Segoe UI", 11, "bold")
 FUENTE_TOTAL         = ("Segoe UI", 18, "bold")
 
 def obtener_taller_id():
-    """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
     try:
         with open("licencia.json", "r") as f:
-            datos = json.load(f)
-            return datos.get("taller_id")
-    except:
-        return None
+            return json.load(f).get("taller_id")
+    except: return None
+
 def configurar_estilos_ttk():
-    """Configura los estilos ttk para Treeview, Combobox, Scrollbar, etc."""
     style = ttk.Style()
     style.theme_use("clam")
-    # --- Treeview ---
-    style.configure("Custom.Treeview",
-                    background=COLOR_FILA_PAR,
-                    foreground=COLOR_TEXTO_OSCURO,
-                    fieldbackground=COLOR_FILA_PAR,
-                    rowheight=30,
-                    font=FUENTE_TABLA,
-                    borderwidth=0)
-    style.configure("Custom.Treeview.Heading",
-                    background=COLOR_PRIMARIO,
-                    foreground=COLOR_TEXTO_BLANCO,
-                    font=FUENTE_TABLA_HEAD,
-                    relief="flat",
-                    padding=(8, 6))
-    style.map("Custom.Treeview.Heading",
-              background=[("active", COLOR_SECUNDARIO)])
-    style.map("Custom.Treeview",
-              background=[("selected", COLOR_SELECCION)],
-              foreground=[("selected", COLOR_TEXTO_OSCURO)])
-    # --- Combobox ---
-    style.configure("Custom.TCombobox",
-                    fieldbackground=COLOR_TEXTO_BLANCO,
-                    background=COLOR_SECUNDARIO,
-                    foreground=COLOR_TEXTO_OSCURO,
-                    arrowcolor=COLOR_SECUNDARIO,
-                    padding=6)
-    style.map("Custom.TCombobox",
-              fieldbackground=[("readonly", COLOR_TEXTO_BLANCO)],
-              selectbackground=[("readonly", COLOR_SELECCION)])
-    # --- Scrollbar ---
-    style.configure("Custom.Vertical.TScrollbar",
-                    gripcount=0,
-                    background=COLOR_BORDE,
-                    troughcolor=COLOR_FONDO_APP,
-                    borderwidth=0,
-                    arrowsize=14)
-    style.map("Custom.Vertical.TScrollbar",
-              background=[("active", COLOR_ACENTO), ("!active", "#C8D6E5")])
-def crear_boton(parent, texto, comando, color_bg, color_fg=None,
-                fuente=None, height=1, ancho=None, padx_btn=12, pady_btn=6):
-    """Crea un boton estilizado con efecto hover."""
-    if color_fg is None:
-        color_fg = COLOR_TEXTO_BLANCO
-    if fuente is None:
-        fuente = FUENTE_BOTON
-    btn = tk.Button(parent, text=texto, font=fuente, bg=color_bg, fg=color_fg,
-                    activebackground=color_bg, activeforeground=color_fg,
-                    relief="flat", cursor="hand2", bd=0,
-                    height=height, command=comando)
-    if ancho:
-        btn.configure(width=ancho)
+    
+    style.configure("Custom.Treeview", background=COLOR_FILA_PAR, foreground=COLOR_TEXTO_OSCURO, fieldbackground=COLOR_FILA_PAR, rowheight=35, font=FUENTE_TABLA, borderwidth=0)
+    style.configure("Custom.Treeview.Heading", background=COLOR_FONDO_APP, foreground=COLOR_TEXTO_OSCURO, font=FUENTE_TABLA_HEAD, relief="flat", padding=(8, 6))
+    style.map("Custom.Treeview.Heading", background=[("active", COLOR_BORDE)])
+    style.map("Custom.Treeview", background=[("selected", COLOR_SELECCION)], foreground=[("selected", COLOR_TEXTO_BLANCO)])
+    
+    style.configure("Custom.TCombobox", fieldbackground=COLOR_FONDO_APP, background=COLOR_BORDE, foreground=COLOR_TEXTO_OSCURO, arrowcolor=COLOR_TEXTO_BLANCO, padding=6)
+    style.map("Custom.TCombobox", fieldbackground=[("readonly", COLOR_FONDO_APP)], selectbackground=[("readonly", COLOR_SELECCION)])
+    
+    style.configure("Custom.Vertical.TScrollbar", gripcount=0, background=COLOR_BORDE, troughcolor=COLOR_FONDO_APP, borderwidth=0, arrowsize=14)
+    style.map("Custom.Vertical.TScrollbar", background=[("active", COLOR_PRIMARIO)])
+
+def crear_boton(parent, texto, comando, color_bg, color_fg=COLOR_TEXTO_BLANCO, fuente=FUENTE_BOTON, height=1, ancho=None, padx_btn=12, pady_btn=6):
+    btn = tk.Button(parent, text=texto, font=fuente, bg=color_bg, fg=color_fg, activebackground=color_bg, activeforeground=color_fg, relief="flat", cursor="hand2", bd=0, height=height, command=comando)
+    if ancho: btn.configure(width=ancho)
     btn.configure(padx=padx_btn, pady=pady_btn)
-    def on_enter(e):
-        btn.configure(bg=_aclarar_color(color_bg, 25))
-    def on_leave(e):
-        btn.configure(bg=color_bg)
-    btn.bind("<Enter>", on_enter)
-    btn.bind("<Leave>", on_leave)
+    btn.bind("<Enter>", lambda e: btn.configure(bg=COLOR_BORDE)) 
+    btn.bind("<Leave>", lambda e: btn.configure(bg=color_bg))
     return btn
-def crear_entry_estilizado(parent, font=None, width=None, textvariable=None):
-    """Crea un Entry con borde sutil y padding."""
-    if font is None:
-        font = FUENTE_CUERPO
-    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0, highlightthickness=0)
-    kwargs = dict(font=font, bd=0, bg=COLOR_TEXTO_BLANCO,
-                  fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_SECUNDARIO,
-                  highlightthickness=0)
-    if width:
-        kwargs['width'] = width
-    if textvariable:
-        kwargs['textvariable'] = textvariable
-    entry = tk.Entry(frame, **kwargs)
+
+def crear_entry_estilizado(parent, font=FUENTE_CUERPO, width=None, textvariable=None):
+    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0)
+    entry = tk.Entry(frame, font=font, bd=0, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_PRIMARIO)
+    if width: entry.configure(width=width)
+    if textvariable: entry.configure(textvariable=textvariable)
     entry.pack(fill="x", padx=1, pady=1, ipady=6)
     return frame, entry
-def crear_text_estilizado(parent, height=3, font=None):
-    """Crea un Text widget con borde sutil."""
-    if font is None:
-        font = FUENTE_CUERPO
-    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0, highlightthickness=0)
-    text_widget = tk.Text(frame, height=height, font=font, bd=0,
-                          bg=COLOR_TEXTO_BLANCO, fg=COLOR_TEXTO_OSCURO,
-                          insertbackground=COLOR_SECUNDARIO,
-                          highlightthickness=0, padx=8, pady=6)
+
+def crear_text_estilizado(parent, height=3, font=FUENTE_CUERPO):
+    frame = tk.Frame(parent, bg=COLOR_BORDE, bd=0)
+    text_widget = tk.Text(frame, height=height, font=font, bd=0, bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO, insertbackground=COLOR_PRIMARIO, padx=8, pady=6)
     text_widget.pack(fill="x", padx=1, pady=1)
     return frame, text_widget
+
+
 def _aclarar_color(hex_color, cantidad=30):
     """Aclara un color hexadecimal."""
     hex_color = hex_color.lstrip('#')
@@ -143,174 +91,89 @@ def _aclarar_color(hex_color, cantidad=30):
     b = min(255, int(hex_color[4:6], 16) + cantidad)
     return f"#{r:02x}{g:02x}{b:02x}"
 class PanelVendedor:
-    
     def __init__(self, id_vendedor=None):
         self.id_vendedor_logueado = id_vendedor if id_vendedor else 1
         self.ventana = tk.Tk()
-        self.ventana.title("Panel Vendedor - ULTRA-CEL")
-        self.ventana.geometry("1100x700")
-        self.ventana.minsize(900, 600)
-        self.ventana.resizable(True, True)
-        self.ventana.configure(bg=COLOR_FONDO_APP)
-        self.ventana.geometry("1000x600") # Tamaño base
-        self.ventana.minsize(900, 600)
+        self.ventana.title("Ultracel Enterprise | Recepción y Ventas")
         
-        # --- ABRIR MAXIMIZADO SIEMPRE ---
-        try:
-            self.ventana.state('zoomed')
-        except:
-            self.ventana.attributes('-zoomed', True)
+        # --- TRUCO INFALIBLE PARA MAXIMIZAR ---
+        ancho_pantalla = self.ventana.winfo_screenwidth()
+        alto_pantalla = self.ventana.winfo_screenheight()
+        self.ventana.geometry(f"{ancho_pantalla}x{alto_pantalla}+0+0")
+        self.ventana.minsize(1024, 720)
+        
+        try: self.ventana.state('zoomed')
+        except: 
+            try: self.ventana.attributes('-zoomed', True)
+            except: pass
+
+        self.ventana.config(bg=COLOR_FONDO_APP)
         configurar_estilos_ttk()
-        
+
         self.tree_reparaciones = None
         self.tree_clientes = None
         self.tree_inventario = None
         self.total_var = tk.StringVar(value="$0.00")
-        
-        # --- Creacion de la Interfaz Base ---
-        try:
-            if getattr(sys, 'frozen', False): base_path = sys._MEIPASS
-            else: base_path = os.path.dirname(__file__)
-            image_path = os.path.join(base_path, "assets", "fondo.png")
-            fondo = Image.open(image_path).resize((1100, 700))
-            fondo_blur = fondo.filter(ImageFilter.GaussianBlur(10))
-            self.fondo_img = ImageTk.PhotoImage(fondo_blur)
-            self.canvas_fondo = tk.Canvas(self.ventana, width=1100, height=700, highlightthickness=0)
-            self.canvas_fondo.pack(fill="both", expand=True)
-            self.canvas_fondo.create_image(0, 0, anchor="nw", image=self.fondo_img)
-            self._overlay_id = self.canvas_fondo.create_rectangle(0, 0, 1100, 700, fill=COLOR_FONDO_APP, stipple="gray25", outline="")
-        except Exception as e:
-            print(f"Error cargando fondo: {e}")
-            self.ventana.configure(bg=COLOR_FONDO_APP)
-            self.canvas_fondo = tk.Canvas(self.ventana, width=1100, height=700,
-                                          highlightthickness=0, bg=COLOR_FONDO_APP)
-            self.canvas_fondo.pack(fill="both", expand=True)
-            self._overlay_id = None
-        # --- Panel flotante con sombra sutil ---
-        self._shadow_id = self.canvas_fondo.create_rectangle(28, 28, 1078, 678,
-                                           fill="#C8D6E5", outline="", stipple="gray12")
-        self.panel_flotante = tk.Frame(self.canvas_fondo, bg=COLOR_FONDO_PANEL,
-                                       highlightbackground=COLOR_BORDE,
-                                       highlightthickness=1)
-        self._panel_win_id = self.canvas_fondo.create_window(550, 350, window=self.panel_flotante,
-                                        anchor="center", width=1050, height=650)
-        
-        self.menu_visible = False
-        # --- Boton Hamburguesa estilizado ---
-        self.boton_menu = tk.Button(self.panel_flotante, text="  \u2630  Menu  ",
-                                    font=FUENTE_MENU, bg=COLOR_PRIMARIO,
-                                    fg=COLOR_TEXTO_BLANCO, relief="flat",
-                                    cursor="hand2", bd=0, padx=10, pady=4,
-                                    activebackground=COLOR_MENU_HOVER,
-                                    activeforeground=COLOR_TEXTO_BLANCO,
-                                    command=self.toggle_menu)
-        self.boton_menu.place(x=10, y=10)
-        
-        # --- Menu lateral ---
-        self.menu_lateral = tk.Frame(self.canvas_fondo, bg=COLOR_MENU_BG, width=0)
-        self.menu_lateral.place(x=0, y=0, relheight=1)
+
+        # --- SISTEMA GRID MAESTRO (Adiós "Ventana Insana") ---
+        self.ventana.grid_rowconfigure(0, weight=1)
+        self.ventana.grid_columnconfigure(1, weight=1)
+
+        # Ejemplo de cómo debe quedar:
+        self.menu_lateral = tk.Frame(self.ventana, bg=COLOR_MENU_BG, width=280) # <-- AQUÍ EL 280
+        self.menu_lateral.grid(row=0, column=0, sticky="nsew")
         self.menu_lateral.pack_propagate(False)
-        self.crear_menu_lateral()
-        
-        # --- Panel dinamico (contenido principal) ---
-        self.panel_dinamico = tk.Frame(self.panel_flotante, bg=COLOR_FONDO_PANEL)
-        self.panel_dinamico.place(x=0, y=60, relwidth=1.0, relheight=1.0, height=-60)
+
+        # PANEL DINÁMICO
+        self.panel_dinamico = tk.Frame(self.ventana, bg=COLOR_FONDO_APP)
+        self.panel_dinamico.grid(row=0, column=1, sticky="nsew")
+        # Le decimos al contenedor principal que se expanda en toda la pantalla
         self.panel_dinamico.grid_rowconfigure(0, weight=1)
         self.panel_dinamico.grid_columnconfigure(0, weight=1)
-        # --- Responsividad ---
-        self.canvas_fondo.bind("<Configure>", self._on_resize)
-        
+
+        self.crear_menu_lateral()
         self.mostrar_venta_rapida()
+        
         self.ventana.mainloop()
-    def _on_resize(self, event):
-        """Actualiza los elementos del canvas al redimensionar la ventana."""
-        w = event.width
-        h = event.height
-        # Overlay de fondo
-        if hasattr(self, '_overlay_id') and self._overlay_id:
-            self.canvas_fondo.coords(self._overlay_id, 0, 0, w, h)
-        # Sombra del panel
-        margen = 25
-        self.canvas_fondo.coords(self._shadow_id, margen + 3, margen + 3, w - margen + 3, h - margen + 3)
-        # Panel flotante centrado
-        self.canvas_fondo.coords(self._panel_win_id, w / 2, h / 2)
-        self.canvas_fondo.itemconfigure(self._panel_win_id, width=w - margen * 2, height=h - margen * 2)
-    def toggle_menu(self):
-        target_width = 200 if not self.menu_visible else 0
-        step = 15
-        current_width = self.menu_lateral.winfo_width()
-        def animate():
-            nonlocal current_width
-            if self.menu_visible and current_width > target_width: current_width -= step
-            elif not self.menu_visible and current_width < target_width: current_width += step
-            else: current_width = target_width
-            self.menu_lateral.place_configure(width=current_width)
-            if current_width != target_width: self.ventana.after(10, animate)
-            else: self.menu_visible = not self.menu_visible
-        animate()
 
     def crear_menu_lateral(self):
-        self.menu_lateral.configure(bg=COLOR_MENU_BG)
-        # --- Encabezado del menu ---
-        header_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
-        header_frame.pack(fill="x", pady=(25, 5))
-        tk.Label(header_frame, text="ULTRA-CEL", font=FUENTE_MENU_TITULO,
-                 bg=COLOR_MENU_BG, fg=COLOR_TEXTO_BLANCO).pack()
-        tk.Label(header_frame, text="Panel Vendedor", font=FUENTE_ETIQUETA,
-                 bg=COLOR_MENU_BG, fg=COLOR_ACENTO).pack()
-        # Separador
-        sep_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_HOVER, height=1)
-        sep_frame.pack(fill="x", padx=20, pady=(15, 10))
-        # --- Opciones del menu ---
-        opciones = [
-            ("\u2B05  Regresar",             self.toggle_menu),
-            ("\U0001F6D2  Realizar Venta",    self.mostrar_venta_rapida),
-            ("\U0001F4DC  Historial Ventas",  self.mostrar_historial),
-            ("\U0001F4E6  Inventario",        self.mostrar_inventario),
-            ("\U0001F465  Admin Clientes",    self.mostrar_admin_clientes),
-            ("\U0001F4F1  Nuevo dispositivo", self.agregar_celular_nuevo)
-        ]
-        for texto, comando in opciones:
-            btn_frame = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
-            btn_frame.pack(fill="x")
-            def combinado(c=comando, t=texto):
-                c()
-                if t != "\u2B05  Regresar":
-                    self.toggle_menu()
-            btn = tk.Button(btn_frame, text=texto, anchor="w",
-                            bg=COLOR_MENU_BG, fg=COLOR_TEXTO_BLANCO, relief="flat",
-                            font=FUENTE_MENU, padx=25, pady=12, bd=0,
-                            activebackground=COLOR_MENU_HOVER,
-                            activeforeground=COLOR_TEXTO_BLANCO, cursor="hand2",
-                            command=combinado)
+        for widget in self.menu_lateral.winfo_children(): widget.destroy()
+
+        frame_logo = tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG)
+        frame_logo.pack(fill="x", pady=30)
+        
+        tk.Label(frame_logo, text="ULTRACEL", font=("Segoe UI", 22, "bold"), bg=COLOR_MENU_BG, fg="#FFFFFF").pack()
+        tk.Label(frame_logo, text="PANEL RECEPCIÓN", font=("Segoe UI", 10, "bold"), bg=COLOR_MENU_BG, fg=COLOR_PRIMARIO).pack(pady=(5, 0))
+
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG, height=20).pack(fill="x")
+
+        def crear_boton_elegante(texto, comando, color_texto="#D1D5DB", color_hover=COLOR_FONDO_PANEL, color_texto_hover="#FFFFFF"):
+            btn = tk.Button(self.menu_lateral, text=texto, command=comando, bg=COLOR_MENU_BG, fg=color_texto, relief="flat", bd=0, font=("Segoe UI", 11, "bold"), cursor="hand2", activebackground=color_hover, activeforeground=color_texto_hover, anchor="w", padx=15, pady=12)
             btn.pack(fill="x")
-            # Hover effect
-            def on_enter(e, b=btn, f=btn_frame):
-                b.configure(bg=COLOR_MENU_HOVER)
-                f.configure(bg=COLOR_MENU_HOVER)
-            def on_leave(e, b=btn, f=btn_frame):
-                b.configure(bg=COLOR_MENU_BG)
-                f.configure(bg=COLOR_MENU_BG)
-            btn.bind("<Enter>", on_enter)
-            btn.bind("<Leave>", on_leave)
-        # --- Boton Salir (fijado al fondo) ---
+            btn.bind("<Enter>", lambda e: btn.config(bg=color_hover, fg=color_texto_hover))
+            btn.bind("<Leave>", lambda e: btn.config(bg=COLOR_MENU_BG, fg=color_texto))
+            return btn
+
+        # --- SIN EMOJIS ---
+        crear_boton_elegante("Punto de Venta", self.mostrar_venta_rapida)
+        crear_boton_elegante("Historial Ventas", self.mostrar_historial)
+        crear_boton_elegante("Inventario General", self.mostrar_inventario)
+        crear_boton_elegante("Base de Clientes", self.mostrar_admin_clientes)
+        crear_boton_elegante("Recibir Equipo", self.agregar_celular_nuevo)
+
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG).pack(fill="both", expand=True)
+
         def salir_a_login():
             if messagebox.askyesno("Confirmar salida", "¿Esta seguro que desea salir y regresar al Login?"):
                 self.ventana.destroy()
-                from Login import iniciar_sesion
-                iniciar_sesion()
-        btn_salir = tk.Button(self.menu_lateral, text="\u23FB  Cerrar Sesion", anchor="center",
-                              bg=COLOR_PELIGRO, fg=COLOR_TEXTO_BLANCO, relief="flat",
-                              font=FUENTE_BOTON, pady=12, bd=0, cursor="hand2",
-                              activebackground=_aclarar_color(COLOR_PELIGRO, 20),
-                              activeforeground=COLOR_TEXTO_BLANCO,
-                              command=salir_a_login)
-        btn_salir.place(relx=0, rely=0.92, relwidth=1)
-        
-        
+                import subprocess
+                subprocess.Popen([sys.executable, "Login.py"])
+
+        crear_boton_elegante("Cerrar Sesión", salir_a_login, color_texto=COLOR_PELIGRO, color_hover="#DC2626", color_texto_hover="#FFFFFF")
+        tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG, height=20).pack(fill="x")
+
     def limpiar_panel(self):
-        for widget in self.panel_dinamico.winfo_children():
-            widget.destroy()
+        for widget in self.panel_dinamico.winfo_children(): widget.destroy()
     def mostrar_venta_rapida(self):
         self.limpiar_panel()
         # Cada vista ahora crea su propio contenedor y lo pone en la celda (0,0) del panel_dinamico
@@ -1530,7 +1393,29 @@ class PanelVendedor:
                 messagebox.showwarning("Indice invalido", "No existe ese numero de producto.")
         except:
             messagebox.showerror("Error", "Entrada invalida.")
-
+            
+    def eliminar_cliente_seleccionado(self):
+        item_sel = self.tree_clientes.selection()
+        if not item_sel: 
+            return messagebox.showwarning("Ninguna Selección", "Por favor, selecciona un cliente de la tabla para eliminar.")
+        
+        id_cliente = self.tree_clientes.item(item_sel[0], 'values')[0]
+        nombre_cliente = self.tree_clientes.item(item_sel[0], 'values')[1]
+        
+        if messagebox.askyesno("Confirmar Eliminación", f"¿Estás seguro de eliminar permanentemente al cliente:\n\n{nombre_cliente}?"):
+            mi_taller_id = obtener_taller_id()
+            if not mi_taller_id: return
+            
+            try:
+                res = requests.post("https://www.ultracel.lat/api/clientes/eliminar", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
+                
+                if res.status_code == 200:
+                    messagebox.showinfo("Eliminado", "Cliente eliminado correctamente.")
+                    self.mostrar_admin_clientes()
+                else: 
+                    messagebox.showerror("Error", "No se pudo eliminar el cliente. Es posible que tenga reparaciones activas asociadas.")
+            except requests.exceptions.ConnectionError: 
+                messagebox.showerror("Error", "Fallo de conexión al servidor.")
 
 if __name__ == "__main__":
     id_logueado = int(sys.argv[1]) if len(sys.argv) > 1 else 1
