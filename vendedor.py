@@ -1341,19 +1341,65 @@ class PanelVendedor:
             id_cliente_sel = clientes_map.get(combo_cliente_var.get())
             payload = {"taller_id": mi_taller_id, "equipo": datos_celular}
 
-            if id_cliente_sel is None: # Es un cliente nuevo
+            if id_cliente_sel is None: 
                 datos_cliente = {k: v.get() for k, v in entries_cliente.items()}
                 if not datos_cliente['nombre'] or not datos_cliente['apellidos'] or not datos_cliente['telefono']:
                     return messagebox.showwarning("Datos Incompletos", "Nombre, apellidos y teléfono del nuevo cliente son obligatorios.", parent=self.ventana)
                 payload["cliente"] = datos_cliente
-            else: # Es un cliente existente
+            else: 
                 payload["id_cliente"] = id_cliente_sel
 
             try:
                 res = requests.post("https://www.ultracel.lat/api/clientes/registrar-equipo", json=payload)
                 if res.status_code == 200:
-                    messagebox.showinfo("Éxito", "Celular registrado correctamente.\nEl técnico ya lo tiene en su fila de pendientes.", parent=self.ventana)
-                    self.mostrar_admin_clientes()
+                    datos = res.json()
+                    folio = datos.get('folio', 'N/A')
+                    pin = datos.get('pin', 'N/A')
+                    
+                    # --- EL NUEVO TICKET DE SEGURIDAD (MODAL PERSONALIZADO) ---
+                    popup = tk.Toplevel(self.ventana)
+                    popup.title("Ultracel | Ticket de Ingreso")
+                    
+                    # 🔧 AJUSTE DE TAMAÑO: Lo hicimos más ancho y alto
+                    ancho_popup = 850
+                    alto_popup = 650
+                    
+                    popup.geometry(f"{ancho_popup}x{alto_popup}")
+                    popup.config(bg=COLOR_FONDO_PANEL)
+                    popup.transient(self.ventana)
+                    popup.grab_set() # Bloquea la ventana de atrás para que no se pierda
+                    
+                    # Centrar en pantalla usando las nuevas medidas variables
+                    popup.update_idletasks()
+                    x = (popup.winfo_screenwidth() - ancho_popup) // 2
+                    y = (popup.winfo_screenheight() - alto_popup) // 2
+                    popup.geometry(f"+{x}+{y}")
+
+                    # Encabezado
+                    tk.Label(popup, text="✅ Registro Exitoso", font=("Segoe UI", 22, "bold"), bg=COLOR_FONDO_PANEL, fg=COLOR_EXITO).pack(pady=(25, 5))
+                    tk.Label(popup, text="Proporciona estos datos al cliente para su App Móvil:", font=("Segoe UI", 12), bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).pack()
+
+                    # Tarjeta oscura para resaltar los números
+                    tarjeta = tk.Frame(popup, bg=COLOR_FONDO_APP, highlightthickness=1, highlightbackground=COLOR_BORDE, padx=30, pady=20)
+                    tarjeta.pack(fill="x", padx=50, pady=30)
+
+                    tk.Label(tarjeta, text="📌 Folio de Reparación:", font=("Segoe UI", 14, "bold"), bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO).grid(row=0, column=0, sticky="w", pady=10)
+                    tk.Label(tarjeta, text=str(folio), font=("Segoe UI", 26, "bold"), bg=COLOR_FONDO_APP, fg=COLOR_PRIMARIO).grid(row=0, column=1, sticky="e", padx=20)
+
+                    tk.Label(tarjeta, text="🔑 PIN de Seguridad:", font=("Segoe UI", 14, "bold"), bg=COLOR_FONDO_APP, fg=COLOR_TEXTO_OSCURO).grid(row=1, column=0, sticky="w", pady=10)
+                    tk.Label(tarjeta, text=str(pin), font=("Segoe UI", 26, "bold"), bg=COLOR_FONDO_APP, fg=COLOR_ADVERTENCIA).grid(row=1, column=1, sticky="e", padx=20)
+
+                    tarjeta.grid_columnconfigure(0, weight=1)
+
+                    # Footer y Botón
+                    tk.Label(popup, text="El técnico ya lo tiene en su fila de pendientes.", font=("Segoe UI", 10), bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).pack(pady=(0, 20))
+                    
+                    def cerrar_y_recargar():
+                        popup.destroy()
+                        self.mostrar_admin_clientes()
+
+                    crear_boton(popup, "Aceptar y Continuar", cerrar_y_recargar, COLOR_PRIMARIO, height=1).pack(ipady=8, ipadx=30)
+
                 else:
                     messagebox.showerror("Error", f"No se pudo registrar: {res.text}", parent=self.ventana)
             except requests.exceptions.ConnectionError:
