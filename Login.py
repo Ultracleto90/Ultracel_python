@@ -102,23 +102,28 @@ def iniciar_sesion():
     theme_switch = ctk.CTkSwitch(right_frame, text="Modo Oscuro", command=toggle_mode, variable=switch_var, onvalue="on", offvalue="off", progress_color="#3B82F6")
     theme_switch.place(relx=0.95, rely=0.05, anchor="ne")
 
-    # Contenedor del formulario
-    form_frame = ctk.CTkFrame(right_frame, fg_color="transparent")
+    # Contenedor del formulario (Transparencia dinámica activada)
+    form_frame = ctk.CTkFrame(right_frame, fg_color=("white", "#1F2937"), bg_color="transparent", corner_radius=15, border_width=1, border_color=("gray85", "#374151"))
     form_frame.grid(row=0, column=0)
 
-    # Títulos
-    ctk.CTkLabel(form_frame, text="BIENVENIDO", font=ctk.CTkFont(size=12, weight="bold"), text_color="#3B82F6").pack(anchor="w", pady=(0, 5))
-    ctk.CTkLabel(form_frame, text="Acceder a su Cuenta", font=ctk.CTkFont(size=28, weight="bold")).pack(anchor="w", pady=(0, 30))
+    # Títulos (Dejamos que CTk clone el fondo automáticamente)
+    ctk.CTkLabel(form_frame, text="BIENVENIDO", font=ctk.CTkFont(size=12, weight="bold"), text_color="#3B82F6", bg_color="transparent").pack(anchor="w", padx=40, pady=(40, 5))
+    ctk.CTkLabel(form_frame, text="Acceder a su Cuenta", font=ctk.CTkFont(size=28, weight="bold"), bg_color="transparent").pack(anchor="w", padx=40, pady=(0, 30))
 
-    # Inputs Modernos
-    ctk.CTkLabel(form_frame, text="CORREO ELECTRÓNICO", font=ctk.CTkFont(size=11, weight="bold"), text_color="gray50").pack(anchor="w")
-    user_entry = ctk.CTkEntry(form_frame, width=350, height=45, placeholder_text="ejemplo@ultracel.lat", font=ctk.CTkFont(size=14))
-    user_entry.pack(pady=(5, 20))
+    # Inputs Modernos "Efecto Enterprise"
+    ctk.CTkLabel(form_frame, text="CORREO ELECTRÓNICO", font=ctk.CTkFont(size=11, weight="bold"), text_color="gray50", bg_color="transparent").pack(anchor="w", padx=40)
+    user_entry = ctk.CTkEntry(form_frame, width=350, height=45, placeholder_text="ejemplo@ultracel.lat", font=ctk.CTkFont(size=14), corner_radius=8, border_width=1, border_color=("#D1D5DB", "#374151"), fg_color=("gray95", "#111827"), bg_color="transparent")
+    user_entry.pack(padx=40, pady=(5, 20))
 
-    ctk.CTkLabel(form_frame, text="CONTRASEÑA", font=ctk.CTkFont(size=11, weight="bold"), text_color="gray50").pack(anchor="w")
-    pass_entry = ctk.CTkEntry(form_frame, width=350, height=45, placeholder_text="••••••••", show="*", font=ctk.CTkFont(size=14))
-    pass_entry.pack(pady=(5, 30))
-
+    ctk.CTkLabel(form_frame, text="CONTRASEÑA", font=ctk.CTkFont(size=11, weight="bold"), text_color="gray50", bg_color="transparent").pack(anchor="w", padx=40)
+    pass_entry = ctk.CTkEntry(form_frame, width=350, height=45, placeholder_text="••••••••", show="*", font=ctk.CTkFont(size=14), corner_radius=8, border_width=1, border_color=("#D1D5DB", "#374151"), fg_color=("gray95", "#111827"), bg_color="transparent")
+    pass_entry.pack(padx=40, pady=(5, 30))
+    
+    # Efecto Focus (Se queda igual, no lo borres)
+    user_entry.bind("<FocusIn>", lambda e: user_entry.configure(border_color="#3B82F6"))
+    user_entry.bind("<FocusOut>", lambda e: user_entry.configure(border_color=("#D1D5DB", "#374151")))
+    pass_entry.bind("<FocusIn>", lambda e: pass_entry.configure(border_color="#3B82F6"))
+    pass_entry.bind("<FocusOut>", lambda e: pass_entry.configure(border_color=("#D1D5DB", "#374151")))
     # ==========================================
     # LÓGICA DE API Y BOTONES
     # ==========================================
@@ -203,13 +208,14 @@ def iniciar_sesion():
     esta_activado = verificar_activacion_local()
     texto_del_boton = "INICIAR SESIÓN" if esta_activado else "ACTIVAR LICENCIA"
 
-    # Botón Principal CustomTkinter (Ya incluye efectos Hover y bordes redondeados)
-    main_btn = ctk.CTkButton(form_frame, text=texto_del_boton, width=350, height=45, font=ctk.CTkFont(size=14, weight="bold"), fg_color="#2563EB", hover_color="#1D4ED8", command=on_btn_click)
-    main_btn.pack(pady=(10, 10))
 
-    # Link "Olvidé mi contraseña"
-    forgot_lbl = ctk.CTkLabel(form_frame, text="Olvidé mi contraseña", font=ctk.CTkFont(size=11), text_color="#3B82F6", cursor="hand2")
-    forgot_lbl.pack()
+    # Botón Principal (Transparencia nativa)
+    main_btn = ctk.CTkButton(form_frame, text=texto_del_boton, width=350, height=45, font=ctk.CTkFont(size=14, weight="bold"), corner_radius=8, fg_color="#2563EB", hover_color="#1D4ED8", border_width=2, border_color="#3B82F6", bg_color="transparent", command=on_btn_click)
+    main_btn.pack(padx=40, pady=(10, 15))
+
+    # Link "Olvidé mi contraseña" 
+    forgot_lbl = ctk.CTkLabel(form_frame, text="¿Olvidaste tu contraseña?", font=ctk.CTkFont(size=12, underline=True), text_color="#3B82F6", cursor="hand2", bg_color="transparent")
+    forgot_lbl.pack(pady=(0, 40))
 
     # Enter para enviar
     app.bind("<Return>", lambda e: on_btn_click())

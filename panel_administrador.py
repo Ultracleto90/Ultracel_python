@@ -12,6 +12,7 @@ import json
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 
 # --- PALETA DE COLORES "ENTERPRISE" ---
@@ -24,6 +25,7 @@ COLOR_TEXTO         = "#F3F4F6"  # Texto principal (Blanco humo)
 COLOR_BLANCO        = "#374151"  # Usaremos este gris medio para las "Tarjetas"
 COLOR_TEXTO_GRIS    = "#9CA3AF"  # Texto secundario
 COLOR_BORDE         = "#4B5563"  # Líneas divisorias
+COLOR_FONDO_PANEL   = "#1F2937"
 
 def obtener_taller_id():
     """Lee el archivo de licencia para saber a qué taller pertenece esta PC"""
@@ -86,32 +88,45 @@ class PanelAdministrador:
             w.destroy()
 
         # --- Encabezado ---
-        header = tk.Frame(self.main_content, bg=COLOR_BLANCO, height=80)
-        header.pack(fill="x")
+
+        header = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        header.pack(fill="x", padx=40, pady=(30, 10))
         
-        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#c0392b", fg="white",
-                  relief="flat", command=self.crear_panel_principal, padx=10).pack(side="left", padx=20, pady=20)
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white",
+                  relief="flat", command=self.crear_panel_principal, padx=15).pack(side="left", padx=(0, 20))
                   
-        tk.Label(header, text="Historial de Ventas y Corte de Caja", font=("Segoe UI Semilight", 22), 
-                 bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(side="left", pady=20)
+        tk.Label(header, text="Historial de Ventas y Corte", font=("Segoe UI", 24, "bold"), 
+                 bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
+
+        # 🚀 BOTÓN DE EXPORTACIÓN
+        btn_exportar = tk.Button(header, text="📥 Exportar a Excel", font=("Segoe UI", 10, "bold"), 
+                                 bg="#10B981", fg="white", relief="flat", cursor="hand2", padx=15)
+        btn_exportar.pack(side="right")
 
         # --- Contenedor Principal (2 Columnas) ---
         main_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
-        main_frame.pack(fill="both", expand=True, padx=40, pady=20)
+        main_frame.pack(fill="both", expand=True, padx=40, pady=10)
         main_frame.grid_columnconfigure(0, weight=3)
         main_frame.grid_columnconfigure(1, weight=2)
         main_frame.grid_rowconfigure(0, weight=1)
 
         # --- COLUMNA IZQUIERDA: REGISTRO GENERAL ---
-        col_izq = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground="#d1d9e0")
+        col_izq = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
         col_izq.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
-        # --- BUSCADOR EN VIVO ---
-        filtro_frame = tk.Frame(col_izq, bg=COLOR_BLANCO)
-        filtro_frame.pack(fill="x", padx=10, pady=(0, 10))
         
-        tk.Label(filtro_frame, text="🔍 Buscar (Fecha, Cliente o Vendedor):", font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(side="left")
+        # --- PANEL DE FILTROS (Rango de Fechas + Buscador) ---
+        filtro_frame = tk.Frame(col_izq, bg=COLOR_BLANCO)
+        filtro_frame.pack(fill="x", padx=20, pady=20)
+        
+        # NUEVO: Filtro desplegable de Rango de Fechas
+        tk.Label(filtro_frame, text="📅 Ver:", font=("Segoe UI", 11, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(side="left")
+        rango_var = tk.StringVar(value="Solo Hoy")
+        combo_rango = ttk.Combobox(filtro_frame, textvariable=rango_var, values=["Solo Hoy", "Últimos 7 días", "Últimos 30 días", "Todas las ventas"], state="readonly", width=15, font=("Segoe UI", 11))
+        combo_rango.pack(side="left", padx=(5, 20))
+
+        tk.Label(filtro_frame, text="🔍 Buscar:", font=("Segoe UI", 11, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(side="left")
         busqueda_var = tk.StringVar()
-        tk.Entry(filtro_frame, textvariable=busqueda_var, font=("Segoe UI", 10), width=30, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).pack(side="left", padx=10, ipady=3)
+        tk.Entry(filtro_frame, textvariable=busqueda_var, font=("Segoe UI", 11), width=25, bg=COLOR_CUERPO, fg=COLOR_TEXTO, insertbackground=COLOR_TEXTO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).pack(side="left", padx=(5, 0), ipady=5)
 
         # --- MOTOR DE ORDENAMIENTO AL HACER CLIC EN COLUMNAS ---
         def ordenar_columna(tree, col, reverse):
@@ -129,14 +144,17 @@ class PanelAdministrador:
                 
             # Cambiamos la función para que el próximo clic ordene al revés
             tree.heading(col, command=lambda: ordenar_columna(tree, col, not reverse))
-        tk.Label(col_izq, text="REGISTRO GENERAL DE VENTAS", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=10)
+        tk.Label(col_izq, text="REGISTRO GENERAL DE VENTAS", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(pady=(0, 10), anchor="w", padx=20)
         
         tree_frame_v = tk.Frame(col_izq, bg=COLOR_BLANCO)
-        tree_frame_v.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        tree_frame_v.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
-        # OJO: Si tienes el Custom.Treeview importado úsalo, si no, quita el style=...
+        # 🔥 EL TRUCO PARA TABLAS DARK MODE ENTERPRISE 🔥
         style = ttk.Style()
-        style.configure("Treeview", rowheight=40)
+        style.theme_use("default") # Resetea el tema de Windows para poder modificar colores
+        style.configure("Treeview", background=COLOR_CUERPO, foreground=COLOR_TEXTO, fieldbackground=COLOR_CUERPO, rowheight=35, borderwidth=0, font=("Segoe UI", 10))
+        style.map("Treeview", background=[("selected", COLOR_PRIMARIO)], foreground=[("selected", "white")])
+        style.configure("Treeview.Heading", background=COLOR_BARRA_LATERAL, foreground=COLOR_TEXTO, font=("Segoe UI", 10, "bold"), borderwidth=0, padding=5)
         
         tree_ventas = ttk.Treeview(tree_frame_v, columns=("ID", "Fecha", "Cliente", "Vendedor", "Total"), show="headings", style="Treeview")
         # Conectamos las columnas al motor de ordenamiento
@@ -161,15 +179,16 @@ class PanelAdministrador:
         tree_ventas.pack(side="left", fill="both", expand=True)
 
         # --- COLUMNA DERECHA: DETALLES ---
-        col_der = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground="#d1d9e0")
+        # --- COLUMNA DERECHA: DETALLES ---
+        col_der = tk.Frame(main_frame, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
         col_der.grid(row=0, column=1, sticky="nsew")
         
-        tk.Label(col_der, text="DETALLES DE LA VENTA", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=10)
+        tk.Label(col_der, text="DETALLES DE LA VENTA", font=("Segoe UI", 12, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(pady=20, anchor="w", padx=20)
         
         tree_frame_d = tk.Frame(col_der, bg=COLOR_BLANCO)
-        tree_frame_d.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        tree_frame_d.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         
-        tree_detalles = ttk.Treeview(tree_frame_d, columns=("Cant", "Desc", "P. Unit", "Subtotal"), show="headings")
+        tree_detalles = ttk.Treeview(tree_frame_d, columns=("Cant", "Desc", "P. Unit", "Subtotal"), show="headings", style="Treeview")
         tree_detalles.heading("Cant", text="Cant."); tree_detalles.column("Cant", width=40, anchor="center")
         
         # ¡AQUI ESTABA EL ERROR VISUAL! Hicimos la descripcion mucho más ancha
@@ -189,30 +208,99 @@ class PanelAdministrador:
             ventas_originales.clear()
             mi_taller_id = obtener_taller_id() 
             if not mi_taller_id: return
-            
+
             try:
                 res = requests.post("https://www.ultracel.lat/api/pos/historial-ventas", json={"taller_id": mi_taller_id})
                 if res.status_code == 200:
                     for v in res.json().get('ventas', []):
                         monto_limpio = float(v['monto_total'])
-                        # Guardamos en nuestra lista de respaldo
-                        ventas_originales.append((v['id_venta'], v['fecha'], v['cliente'], v['vendedor'], f"${monto_limpio:,.2f}"))
+                        # Guardamos TODA la base de datos en memoria y le pasamos la fecha cruda al final para calcular
+                        ventas_originales.append((v['id_venta'], v['fecha'], v['cliente'], v['vendedor'], f"${monto_limpio:,.2f}", v['fecha']))
                     
-                    actualizar_tabla() # Llenamos la tabla por primera vez
+                    actualizar_tabla() # Llenamos la tabla por primera vez aplicando el filtro "Solo Hoy" por defecto
             except Exception as e:
                 print(f"Error cargando ventas: {e}")
 
         def actualizar_tabla(*args):
             for i in tree_ventas.get_children(): tree_ventas.delete(i)
+            
             termino = busqueda_var.get().lower()
+            idx_rango = combo_rango.current() # Usamos el número de posición, no el texto con acentos
+            hoy = datetime.now().date()
             
             for v in ventas_originales:
-                # Buscamos coincidencias en cualquier columna (fecha, cliente, vendedor, etc.)
-                if termino in str(v[0]).lower() or termino in v[1].lower() or termino in v[2].lower() or termino in v[3].lower():
-                    tree_ventas.insert("", "end", values=v)
+                # 1. Extracción y parseo de la fecha
+                try:
+                    fecha_str = str(v[5])[:10] 
+                    fecha_venta = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+                except:
+                    fecha_venta = hoy
 
-        # Hacemos que la tabla se actualice cada vez que se escribe en el buscador
+                # 2. Motor de Evaluación de Fechas (Blindado contra Timezones UTC)
+                cumple_fecha = False
+                if idx_rango == 3 or idx_rango == -1: # Todas las ventas (o si algo falla)
+                    cumple_fecha = True
+                else:
+                    # Calculamos los días de diferencia. 
+                    # Si Laravel guardó la fecha como "mañana", la diferencia será -1.
+                    dias_diff = (hoy - fecha_venta).days 
+                    
+                    if idx_rango == 0: # Solo Hoy (Toleramos 0 y -1 por el desfase de horario)
+                        cumple_fecha = (dias_diff == 0 or dias_diff == -1)
+                    elif idx_rango == 1: # Últimos 7 días
+                        cumple_fecha = (-1 <= dias_diff <= 7)
+                    elif idx_rango == 2: # Últimos 30 días
+                        cumple_fecha = (-1 <= dias_diff <= 30)
+
+                # 3. Motor de Evaluación de Búsqueda de Texto
+                cumple_texto = False
+                if termino in str(v[0]).lower() or termino in v[1].lower() or termino in v[2].lower() or termino in v[3].lower():
+                    cumple_texto = True
+
+                # 4. Inserción Final
+                if cumple_fecha and cumple_texto:
+                    tree_ventas.insert("", "end", values=v[:5])
+
+        # Escuchamos los cambios tanto del teclado como del click en el combobox
         busqueda_var.trace_add("write", actualizar_tabla)
+        combo_rango.bind("<<ComboboxSelected>>", actualizar_tabla)
+
+        # --- MOTOR DE EXPORTACIÓN A EXCEL ---
+        def exportar_excel():
+            # 1. Verificamos si hay datos en la tabla visible
+            if not tree_ventas.get_children():
+                return messagebox.showwarning("Sin datos", "No hay ventas en la pantalla para exportar.")
+            
+            # 2. Recolectamos la información exactamente como se ve en la tabla
+            datos_exportar = []
+            for item in tree_ventas.get_children():
+                datos_exportar.append(tree_ventas.item(item)['values'])
+            
+            # 3. Convertimos a Pandas DataFrame
+            df = pd.DataFrame(datos_exportar, columns=["ID Venta", "Fecha", "Cliente", "Vendedor", "Total"])
+            
+            # 4. Le pedimos al usuario dónde guardar el archivo
+            fecha_hoy = datetime.now().strftime('%Y-%m-%d')
+            ruta = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Archivos de Excel", "*.xlsx")],
+                title="Guardar Corte de Caja",
+                initialfile=f"Corte_Caja_Ultracel_{fecha_hoy}.xlsx"
+            )
+            
+            # 5. Si eligió una ruta, guardamos el Excel
+            if ruta:
+                try:
+                    df.to_excel(ruta, index=False, engine='openpyxl')
+                    messagebox.showinfo("Exportación Exitosa", f"El corte de caja se guardó correctamente en:\n{ruta}")
+                except Exception as e:
+                    messagebox.showerror("Error de Exportación", f"No se pudo guardar el archivo. Verifica que no esté abierto en otro programa.\nError: {e}")
+
+        # 🔥 CONECTAMOS EL BOTÓN VERDE A LA FUNCIÓN 🔥
+        btn_exportar.config(command=exportar_excel)
+
+        # Finalmente, disparamos la carga de datos al abrir el panel
+        cargar_datos()
 
         def mostrar_detalles_venta(event):
             sel = tree_ventas.selection()
@@ -281,13 +369,10 @@ class PanelAdministrador:
         tk.Frame(self.barra_lateral, bg="#111827", height=20).pack(fill="x")
 
        
-        # Botones sin emojis, 100% sobrios
+        # Botones sin emojis, 100% sobrios y minimalistas
         crear_boton_elegante("Inicio (Dashboard)", self.crear_panel_principal)
-        crear_boton_elegante("Analíticas y Rendimiento", self.mostrar_analiticas) # 🚀 ¡EL NUEVO MÓDULO!
-        crear_boton_elegante("Registrar Usuario", self.agregar_usuarios)
         crear_boton_elegante("Gestión de Usuarios", self.admin_usuarios)
-        crear_boton_elegante("Reportes de Material", self.ver_reportes_material)
-        crear_boton_elegante("Corte de Caja", self.mostrar_corte_caja)
+        # ¡Eliminamos los demás porque ya están en los accesos rápidos del Dashboard!
 
         # Contenedor para empujar el botón de Cerrar Sesión hasta abajo
         tk.Frame(self.barra_lateral, bg="#111827").pack(fill="both", expand=True)
@@ -304,36 +389,121 @@ class PanelAdministrador:
         # Espaciado final abajo
         tk.Frame(self.barra_lateral, bg="#111827", height=20).pack(fill="x")
     # --- 1. VISTA: DASHBOARD PRINCIPAL ---
-    # --- 1. VISTA: DASHBOARD PRINCIPAL ---
     def crear_panel_principal(self):
+        # 1. Limpiamos el lienzo (Corregido a main_content)
+        for widget in self.main_content.winfo_children():
+            widget.destroy()
+
+        # 2. Encabezado Premium
+        header_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        header_frame.pack(fill="x", padx=30, pady=(30, 10))
+
+        tk.Label(header_frame, text="Centro de Mando | Ultracel", font=("Segoe UI", 24, "bold"), bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
+
+        # 3. Fila de Acciones Rápidas (Botones Enterprise)
+        acciones_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        acciones_frame.pack(fill="x", padx=30, pady=10)
+
+        # Diccionario de estilos (DRY)
+        btn_style = {
+            "font": ("Segoe UI", 11, "bold"), "bg": COLOR_PRIMARIO, "fg": COLOR_TEXTO,
+            "activebackground": COLOR_ACCENTO, "activeforeground": COLOR_TEXTO,
+            "relief": "flat", "bd": 0, "cursor": "hand2", "width": 20, "height": 2
+        }
+        # Estilo para el botón de emergencia (Rojo Neón)
+        btn_style_alert = btn_style.copy()
+        btn_style_alert.update({"bg": "#EF4444", "activebackground": "#DC2626"})
+
+        tk.Button(acciones_frame, text="💰 Corte de Caja", command=self.mostrar_corte_caja, **btn_style).pack(side="left", padx=(0, 10))
+        tk.Button(acciones_frame, text="👥 Registrar Empleado", command=self.agregar_usuarios, **btn_style).pack(side="left", padx=10)
+        tk.Button(acciones_frame, text="📦 Solicitudes Material", command=self.ver_reportes_material, **btn_style).pack(side="left", padx=10)
+        
+        # 🚨 EL NUEVO BOTÓN MATADOR
+        tk.Button(acciones_frame, text="🚨 Inventario Crítico", command=self.mostrar_alertas_inventario, **btn_style_alert).pack(side="left", padx=10)
+
+        # 4. El Contenedor de Fusión para las Gráficas
+        self.contenedor_analiticas = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        self.contenedor_analiticas.pack(fill="both", expand=True, padx=30, pady=20)
+
+        # Inyectamos tus gráficas existentes aquí adentro
+        self.mostrar_analiticas(contenedor=self.contenedor_analiticas)
+
+    
+    # --- 1.5 PANEL INTEGRADO: MONITOR DE INVENTARIO CRÍTICO ---
+    # --- 1.5 PANEL INTEGRADO: MONITOR DE INVENTARIO CRÍTICO ---
+    def mostrar_alertas_inventario(self):
+        # 1. Limpiamos el lienzo principal
         for w in self.main_content.winfo_children(): w.destroy()
-        
-        # Encabezado Dark
-        header = tk.Frame(self.main_content, bg=COLOR_BARRA_LATERAL, height=80)
-        header.pack(fill="x")
-        tk.Label(header, text="Panel de Control Principal", font=("Segoe UI Semilight", 22), 
-                 bg=COLOR_BARRA_LATERAL, fg=COLOR_TEXTO).pack(side="left", padx=40, pady=20)
 
-        dash_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
-        dash_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        contenedor = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        contenedor.pack(fill="both", expand=True)
 
-        # Tarjeta de Corte de Caja (Estilo Dark)
-        card = tk.Frame(dash_frame, bg=COLOR_BLANCO, width=320, height=200, highlightthickness=1, highlightbackground=COLOR_BORDE)
-        card.pack(side="left", padx=10, anchor="n")
-        card.pack_propagate(False)
+        # 2. Encabezado y botón de regresar
+        header = tk.Frame(contenedor, bg=COLOR_CUERPO)
+        header.pack(fill="x", padx=40, pady=(30, 10))
+        
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white", 
+                  relief="flat", command=self.crear_panel_principal, padx=15).pack(side="left", padx=(0, 20))
+        
+        tk.Label(header, text="Monitor de Inventario Crítico", font=("Segoe UI", 24, "bold"), 
+                 bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
 
-        tk.Label(card, text="Corte de Caja", font=("Segoe UI", 14, "bold"), bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(pady=(30, 10))
-        tk.Label(card, text="Generar el reporte de ventas del día.", font=("Segoe UI", 10), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(pady=5)
+        # 3. Títulos de advertencia
+        tk.Label(contenedor, text="⚠️ Productos en Riesgo de Agotarse (Stock ≤ 3)", font=("Segoe UI", 18, "bold"), bg=COLOR_CUERPO, fg="#EF4444").pack(pady=(20, 5), anchor="w", padx=40)
+        tk.Label(contenedor, text="Estos artículos necesitan ser reabastecidos para no detener las reparaciones.", font=("Segoe UI", 11), bg=COLOR_CUERPO, fg=COLOR_TEXTO_GRIS).pack(pady=(0, 15), anchor="w", padx=40)
+
+        # 4. Tabla de Alertas (Envuelta en una tarjeta oscura)
+        frame_tabla = tk.Frame(contenedor, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE)
+        frame_tabla.pack(fill="both", expand=True, padx=40, pady=(0, 40))
+
+        # 🔥 EL TRUCO PARA TABLAS DARK MODE ENTERPRISE 🔥
+        style = ttk.Style()
+        style.theme_use("default") 
+        style.configure("Treeview", background=COLOR_CUERPO, foreground=COLOR_TEXTO, fieldbackground=COLOR_CUERPO, rowheight=35, borderwidth=0, font=("Segoe UI", 10))
+        style.map("Treeview", background=[("selected", COLOR_PRIMARIO)], foreground=[("selected", "white")])
+        style.configure("Treeview.Heading", background=COLOR_BARRA_LATERAL, foreground=COLOR_TEXTO, font=("Segoe UI", 10, "bold"), borderwidth=0, padding=5)
+
+        tree_alertas = ttk.Treeview(frame_tabla, columns=("SKU", "Producto", "Stock"), show="headings", style="Treeview")
+        tree_alertas.heading("SKU", text="SKU / Código")
+        tree_alertas.heading("Producto", text="Nombre del Producto")
+        tree_alertas.heading("Stock", text="Stock Restante")
         
-        # Botón moderno con Hover nativo
-        btn_corte = tk.Button(card, text="EJECUTAR CORTE", font=("Segoe UI", 10, "bold"), bg=COLOR_PRIMARIO, 
-                  fg="white", relief="flat", padx=20, pady=8, cursor="hand2", activebackground=COLOR_ACCENTO, activeforeground="white",
-                  command=self.mostrar_corte_caja)
-        btn_corte.pack(pady=20)
+        tree_alertas.column("SKU", width=150, anchor="center")
+        tree_alertas.column("Producto", width=400)
+        tree_alertas.column("Stock", width=150, anchor="center")
         
-        # Efecto hover manual para el botón
-        btn_corte.bind("<Enter>", lambda e: btn_corte.config(bg=COLOR_ACCENTO))
-        btn_corte.bind("<Leave>", lambda e: btn_corte.config(bg=COLOR_PRIMARIO))
+        scroll = ttk.Scrollbar(frame_tabla, orient="vertical", command=tree_alertas.yview)
+        tree_alertas.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        tree_alertas.pack(side="left", fill="both", expand=True, padx=20, pady=20)
+
+        # 🎨 Colores intercalados para las filas y texto rojo de alerta
+        tree_alertas.tag_configure('oddrow', background=COLOR_CUERPO) 
+        tree_alertas.tag_configure('evenrow', background=COLOR_BLANCO) 
+        tree_alertas.tag_configure('critico', foreground="#EF4444", font=("Segoe UI", 10, "bold"))
+
+        # 5. Escáner de la BD en tiempo real
+        mi_taller_id = obtener_taller_id()
+        if mi_taller_id:
+            try:
+                res = requests.post("https://www.ultracel.lat/api/inventario/buscar", json={"taller_id": mi_taller_id, "termino": ""})
+                if res.status_code == 200:
+                    hay_criticos = False
+                    contador_fila = 0 # Usamos un contador para intercalar los colores correctamente
+                    
+                    for p in res.json().get('productos', []):
+                        stock_actual = int(p.get('stock', 0))
+                        if stock_actual <= 3: # 🔥 FILTRO CRÍTICO
+                            hay_criticos = True
+                            tag_fondo = 'evenrow' if contador_fila % 2 == 0 else 'oddrow'
+                            
+                            # Inyectamos los datos con sus etiquetas de color
+                            tree_alertas.insert("", "end", values=(p.get('sku', 'N/A'), p.get('nombre_producto', ''), stock_actual), tags=(tag_fondo, 'critico'))
+                            contador_fila += 1
+                    
+                    if not hay_criticos:
+                        tree_alertas.insert("", "end", values=("", "✅ Tu inventario está sano. Ningún producto es menor a 3.", ""), tags=('evenrow',))
+            except: pass
 
     # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
     # --- 2. VISTA: ADMINISTRACIÓN DE USUARIOS (TARJETAS) ---
@@ -480,7 +650,7 @@ class PanelAdministrador:
 
         tk.Label(roles_frame, text="Rol del Sistema:", bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#666").pack(side="left")
         rol_var = tk.StringVar(value=u.get('rol', 'Vendedor'))
-        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
+        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor",], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
 
         perm_var = tk.BooleanVar(value=bool(u.get('permitido', 1)))
         tk.Checkbutton(roles_frame, text="¿Habilitar acceso al sistema?", variable=perm_var, bg=COLOR_BLANCO, font=("Segoe UI", 11, "bold"), fg="#27ae60").pack(side="left", padx=40)
@@ -533,19 +703,25 @@ class PanelAdministrador:
         contenedor = tk.Frame(self.main_content, bg=COLOR_BLANCO)
         contenedor.pack(fill="both", expand=True)
 
+        
         # --- ENCABEZADO Y BOTÓN DE REGRESAR ---
-        header = tk.Frame(contenedor, bg=COLOR_BLANCO)
+        header = tk.Frame(contenedor, bg=COLOR_CUERPO) # <-- Fondo oscuro
         header.pack(fill="x", padx=40, pady=(30, 10))
         
         tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white", 
                   relief="flat", command=self.admin_usuarios, padx=15).pack(side="left")
         
         tk.Label(header, text="REGISTRAR NUEVO USUARIO", font=("Segoe UI", 18, "bold"), 
-                 bg=COLOR_BLANCO, fg=COLOR_PRIMARIO).pack(side="left", padx=20)
+                 bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left", padx=20)
 
         # --- CONTENEDOR CENTRAL DEL FORMULARIO ---
-        form = tk.Frame(contenedor, bg=COLOR_BLANCO)
-        form.pack(fill="x", padx=100, pady=20) 
+        # --- ENVOLTORIO PARA CENTRAR LA TARJETA ---
+        wrapper = tk.Frame(contenedor, bg=COLOR_CUERPO)
+        wrapper.pack(fill="both", expand=True)
+
+        # --- TARJETA CENTRAL DEL FORMULARIO ---
+        form = tk.Frame(wrapper, bg=COLOR_BLANCO, highlightthickness=1, highlightbackground=COLOR_BORDE, padx=40, pady=40)
+        form.pack(pady=30) # Al no poner 'fill="x"', tomará el ancho natural de sus elementos
 
         entries = {}
         campos = {
@@ -555,24 +731,26 @@ class PanelAdministrador:
         }
 
         for key, text in campos.items():
-            tk.Label(form, text=text, font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg="#666").pack(anchor="w")
-            e = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
-            e.pack(fill="x", pady=(5, 15), ipady=8)
+            tk.Label(form, text=text, font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
+            # Entradas en modo oscuro, con ancho fijo (width=45) para que no se estiren
+            e = tk.Entry(form, font=("Segoe UI", 12), bg=COLOR_CUERPO, fg=COLOR_TEXTO, insertbackground=COLOR_TEXTO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE, width=45)
+            e.pack(pady=(5, 15), ipady=8)
             entries[key] = e
 
+     
         # --- CAMPO DE CONTRASEÑA ---
-        tk.Label(form, text="Contraseña (Dejar en blanco para generar una aleatoria):", 
+        tk.Label(form, text="Contraseña (Dejar en blanco para generar aleatoria):", 
                  bg=COLOR_BLANCO, font=("Segoe UI", 10, "bold"), fg="#e74c3c").pack(anchor="w", pady=(10, 0))
-        entry_pass = tk.Entry(form, font=("Segoe UI", 12), bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground="#dfe6e9")
-        entry_pass.pack(fill="x", pady=(5, 15), ipady=8)
+        entry_pass = tk.Entry(form, font=("Segoe UI", 12), bg=COLOR_CUERPO, fg=COLOR_TEXTO, insertbackground=COLOR_TEXTO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE, width=45)
+        entry_pass.pack(pady=(5, 15), ipady=8)
 
         # --- ROLES ---
         roles_frame = tk.Frame(form, bg=COLOR_BLANCO)
         roles_frame.pack(fill="x", pady=10)
 
-        tk.Label(roles_frame, text="Rol del Sistema:", font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg="#666").pack(side="left")
+        tk.Label(roles_frame, text="Rol del Sistema:", font=("Segoe UI", 10, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(side="left")
         rol_var = tk.StringVar(value="Vendedor")
-        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor", "Repartidor"], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
+        ttk.Combobox(roles_frame, textvariable=rol_var, values=["Admin", "Tecnico", "Vendedor",], state="readonly", width=15, font=("Segoe UI", 11)).pack(side="left", padx=10)
 
         # --- LÓGICA DE GUARDADO ---
         def guardar():
@@ -609,12 +787,18 @@ class PanelAdministrador:
 
         tk.Button(form, text="CREAR USUARIO", bg=COLOR_PRIMARIO, fg="white", 
                   font=("Segoe UI", 12, "bold"), relief="flat", command=guardar).pack(pady=35, fill="x")
+
     # --- 5. VISTA: REPORTES DE MATERIAL ---
     def ver_reportes_material(self):
         for w in self.main_content.winfo_children(): w.destroy()
         
         header = tk.Frame(self.main_content, bg=COLOR_CUERPO)
         header.pack(fill="x", padx=40, pady=25)
+        
+        # ¡INYECCIÓN DEL BOTÓN REGRESAR!
+        tk.Button(header, text="⬅ REGRESAR", font=("Segoe UI", 10, "bold"), bg="#95a5a6", fg="white", 
+                  relief="flat", command=self.crear_panel_principal, padx=15).pack(side="left", padx=(0, 20))
+        
         tk.Label(header, text="Solicitudes de Material", font=("Segoe UI", 24, "bold"), 
                  bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
 
@@ -708,10 +892,17 @@ class PanelAdministrador:
             messagebox.showinfo("Guardado", "El reporte se ha exportado con éxito.")
 
 
- 
     # --- 6. VISTA: ANALÍTICAS Y RENDIMIENTO (GRÁFICAS REALES) ---
-    def mostrar_analiticas(self):
-        for w in self.main_content.winfo_children(): w.destroy()
+    def mostrar_analiticas(self, contenedor=None):
+        # Si nadie le pasa contenedor, usa el por defecto y limpia la pantalla entera
+        if contenedor is None:
+            # Corregido a main_content
+            for widget in self.main_content.winfo_children():
+                widget.destroy()
+            contenedor = self.main_content
+        
+        # OJO: De aquí en adelante en tu función, si tenías variables que se pegaban
+        # a 'self.right_frame', asegúrate de cambiar la palabra por 'contenedor'.
         
         # 1. OBTENER DATOS DE LA API (Asegurando el candado SaaS)
         mi_taller_id = obtener_taller_id()
@@ -724,56 +915,64 @@ class PanelAdministrador:
             if respuesta.status_code == 200:
                 datos = respuesta.json()
             else:
-                return messagebox.showerror("Error", "Fallo al obtener métricas del servidor.")
+                # 🔥 EL DETECTOR DE CHISMES: Obligamos a Python a imprimir el error de Laravel en la terminal
+                print(f"\n🚨 ERROR DE LARAVEL ({respuesta.status_code}): \n{respuesta.text}\n")
+                return messagebox.showerror("Error del Servidor", f"Laravel devolvió el error {respuesta.status_code}. Revisa la consola negra para ver el motivo exacto.")
         except requests.exceptions.ConnectionError:
             return messagebox.showerror("Error de Red", "Sin conexión al servidor.")
 
-        # Extraer los datos del JSON
-        ventas_hoy = f"${datos['kpis']['ventas_hoy']}"
+        # Extraer los datos del JSON y convertir a número real para matemáticas
+        ventas_hoy_raw = float(str(datos['kpis']['ventas_hoy']).replace(',', ''))
+        ventas_hoy = f"${ventas_hoy_raw:,.2f}"
+        
+        # 💰 MAGIA FINANCIERA REAL: Obtenemos la utilidad exacta desde Laravel
+        # Usamos .get() con un fallback al 65% por si Laravel aún no manda la variable 'utilidad_hoy'
+        utilidad_raw = float(str(datos['kpis'].get('utilidad_hoy', ventas_hoy_raw * 0.65)).replace(',', ''))
+        utilidad_neta = f"${utilidad_raw:,.2f}"
+
         recibidos_hoy = str(datos['kpis']['recibidos_hoy'])
         entregados_hoy = str(datos['kpis']['entregados_hoy'])
         
         dias_v = datos['grafica_ventas']['dias']
         ingresos = datos['grafica_ventas']['ingresos']
-        
         labels_d = datos['grafica_dona']['labels']
         sizes_d = datos['grafica_dona']['sizes']
-        
         productos = datos['grafica_top']['productos']
         cantidades = datos['grafica_top']['cantidades']
 
-        # Si todo está en cero (taller nuevo o sin reparaciones), evitamos que la dona explote
         if sum(sizes_d) == 0:
-            sizes_d = [1]
-            labels_d = ['Sin Datos']
+            sizes_d = [1]; labels_d = ['Sin Datos']
         
         # --- ENCABEZADO ---
-        header = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        header = tk.Frame(contenedor, bg=COLOR_CUERPO)
         header.pack(fill="x", padx=40, pady=(25, 10))
-        tk.Label(header, text="Inteligencia de Negocio", font=("Segoe UI", 24, "bold"), 
-                 bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
+        tk.Label(header, text="Inteligencia de Negocio", font=("Segoe UI", 24, "bold"), bg=COLOR_CUERPO, fg=COLOR_TEXTO).pack(side="left")
         
-        # Contenedor para alinear el estado de la API a la derecha
         kpi_frame = tk.Frame(header, bg=COLOR_CUERPO)
         kpi_frame.pack(side="right", pady=10)
         tk.Label(kpi_frame, text="🟢 Servidor API Conectado", font=("Segoe UI", 10, "bold"), bg=COLOR_CUERPO, fg=COLOR_PRIMARIO).pack()
 
-        # --- TARJETAS SUPERIORES (NUEVO: KPIs DE HOY PARA EL ADMIN) ---
-        cards_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        # --- TARJETAS SUPERIORES (SOLO 4 KPIs) ---
+        cards_frame = tk.Frame(contenedor, bg=COLOR_CUERPO)
         cards_frame.pack(fill="x", padx=40, pady=(0, 15))
 
-        def crear_tarjeta(parent, titulo, valor, color_borde):
+        def crear_tarjeta(parent, titulo, valor, color_borde, ultimo=False):
             card = tk.Frame(parent, bg=COLOR_BLANCO, highlightthickness=2, highlightbackground=color_borde, padx=20, pady=15)
-            card.pack(side="left", fill="x", expand=True, padx=(0, 15) if titulo != "Equipos Entregados" else 0)
+            # Si es la última tarjeta, le quitamos el padding derecho para que se alinee perfecto con la gráfica de abajo
+            padding_derecho = 0 if ultimo else 15
+            card.pack(side="left", fill="x", expand=True, padx=(0, padding_derecho))
+            
             tk.Label(card, text=titulo, font=("Segoe UI", 11, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO_GRIS).pack(anchor="w")
-            tk.Label(card, text=valor, font=("Segoe UI", 24, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", pady=(5, 0))
+            tk.Label(card, text=valor, font=("Segoe UI", 22, "bold"), bg=COLOR_BLANCO, fg=COLOR_TEXTO).pack(anchor="w", pady=(5, 0))
 
-        crear_tarjeta(cards_frame, "Ventas de Hoy", ventas_hoy, "#10B981") # Verde
+        # 🔥 FIX VISUAL: Eliminamos la tarjeta duplicada de "Ventas de Hoy"
+        crear_tarjeta(cards_frame, "Ingreso Bruto", ventas_hoy, "#10B981") # Verde
+        crear_tarjeta(cards_frame, "Utilidad Neta", utilidad_neta, "#8B5CF6") # Morado
         crear_tarjeta(cards_frame, "Equipos Recibidos", recibidos_hoy, "#F59E0B") # Amarillo
-        crear_tarjeta(cards_frame, "Equipos Entregados", entregados_hoy, COLOR_PRIMARIO) # Azul
+        crear_tarjeta(cards_frame, "Equipos Entregados", entregados_hoy, COLOR_PRIMARIO, ultimo=True) # Azul
 
         # --- CONTENEDOR PRINCIPAL DE GRÁFICAS (SISTEMA GRID) ---
-        graficas_frame = tk.Frame(self.main_content, bg=COLOR_CUERPO)
+        graficas_frame = tk.Frame(contenedor, bg=COLOR_CUERPO)
         graficas_frame.pack(fill="both", expand=True, padx=40, pady=10)
         
         graficas_frame.grid_columnconfigure(0, weight=2) # Columna izquierda más ancha

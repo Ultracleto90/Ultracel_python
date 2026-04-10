@@ -5,6 +5,7 @@ import os
 import sys
 import requests
 import json
+import webbrowser 
 # --- PALETA DE COLORES ENTERPRISE (DARK MODE) ---
 COLOR_PRIMARIO       = "#3B82F6"   # Azul Neón
 COLOR_SECUNDARIO     = "#2563EB"   # Azul Intermedio
@@ -14,6 +15,7 @@ COLOR_PELIGRO        = "#EF4444"   # Rojo
 COLOR_ADVERTENCIA    = "#F59E0B"   # Amarillo
 COLOR_TEXTO_OSCURO   = "#F3F4F6"   # ENGAÑO: Lo llamamos oscuro pero es BLANCO HUMO
 COLOR_TEXTO_GRIS     = "#9CA3AF"   # Gris claro
+COLOR_CUERPO        = "#1F2937"  # Fondo principal oscuro
 COLOR_TEXTO_BLANCO   = "#FFFFFF"   # Blanco puro
 COLOR_FONDO_APP      = "#111827"   # Fondo principal (Gris muy oscuro)
 COLOR_FONDO_PANEL    = "#1F2937"   # Fondo tarjetas
@@ -338,14 +340,7 @@ class PanelVendedor:
             taller_id = obtener_taller_id()
             id_cliente = clientes_map.get(cliente_var.get(), 0) # Si es Mostrador, mandará 0
             
-            # ⚠️ OJO AQUÍ: Necesitamos el ID del cajero/vendedor que inició sesión. 
-            # Si tienes una función como obtener_id_usuario(), úsala. 
-            # Por ahora le pondré 1 para que no falle.
-            try:
-                from Login import obtener_id_usuario # Ajusta esto a como importas tus variables globales
-                id_vendedor = obtener_id_usuario()
-            except ImportError:
-                id_vendedor = 1 
+            id_vendedor = self.id_vendedor_logueado
 
             total_venta = 0.0
             payload_items = []
@@ -390,13 +385,23 @@ class PanelVendedor:
                     res = requests.post("https://www.ultracel.lat/api/pos/procesar-venta", json=payload)
                     
                     if res.status_code == 200:
+                        # 🔥 ATRAPAMOS EL ID DE LA VENTA RECIÉN CREADA
+                        id_venta_generada = res.json().get('id_venta') 
+                        
                         messagebox.showinfo("¡Venta Exitosa!", "La venta se ha registrado. El stock y las reparaciones han sido actualizadas.")
                         
+                        # ✨ LA MAGIA: Disparamos la impresión del ticket automáticamente
+                        if id_venta_generada:
+                            self.generar_e_imprimir_ticket_venta(id_venta_generada)
+                        else:
+                            # 🔥 EL CHISMOSO 2: Si Laravel no manda el ID, te avisa.
+                            messagebox.showwarning("Alerta de API", "La venta se guardó, pero Laravel no devolvió el 'id_venta'.\n¿Seguro que subiste el POSController.php al servidor?")
+                            
                         # Limpiamos todo el panel para el siguiente cliente
                         for i in self.tree_carrito.get_children(): self.tree_carrito.delete(i)
                         self.actualizar_total_carrito()
                         
-                        cliente_var.set("Cliente de Mostrador")
+                        cliente_var.set("0 - Venta de Mostrador")
                         on_cliente_seleccionado() # Ocultará las reparaciones
                         buscar_productos()        # Recargará el stock actualizado
                         
@@ -690,42 +695,48 @@ class PanelVendedor:
         form_frame = tk.Frame(contenedor, bg=COLOR_FONDO_PANEL, padx=100, pady=30)
         form_frame.pack(fill="both", expand=True)
 
-        # Diccionario para guardar las variables
+        # Diccionario para guardar las variables (¡Con Finanzas!)
         vars_prod = {
             "sku": tk.StringVar(),
             "nombre_producto": tk.StringVar(),
             "marca_compatible": tk.StringVar(),
             "stock": tk.StringVar(value="0"),
+            "precio_compra": tk.StringVar(value="0.00"), # 🔥 EL COSTO QUE FALTABA
             "precio_venta": tk.StringVar(value="0.00"),
-            "tipo_producto": tk.StringVar(value="Venta Directa") # Valor por defecto
+            "tipo_producto": tk.StringVar(value="Venta Directa")
         }
 
         # --- Diseño de los campos en Grid ---
+        
         # Fila 0: SKU y Nombre
-        tk.Label(form_frame, text="SKU/Código:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=0, column=0, sticky="w", pady=10)
-        tk.Entry(form_frame, textvariable=vars_prod["sku"], font=FUENTE_CUERPO, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=0, column=1, sticky="ew", padx=(0, 30), ipady=5)
+        tk.Label(form_frame, text="SKU/Código:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).grid(row=0, column=0, sticky="w", pady=(10, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["sku"], font=FUENTE_CUERPO, bg=COLOR_CUERPO, fg=COLOR_TEXTO_OSCURO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=0, column=1, sticky="ew", padx=(0, 30), ipady=8)
 
-        tk.Label(form_frame, text="Nombre del Producto:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=0, column=2, sticky="w", pady=10)
-        tk.Entry(form_frame, textvariable=vars_prod["nombre_producto"], font=FUENTE_CUERPO, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=0, column=3, sticky="ew", ipady=5)
+        tk.Label(form_frame, text="Nombre del Producto:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).grid(row=0, column=2, sticky="w", pady=(10, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["nombre_producto"], font=FUENTE_CUERPO, bg=COLOR_CUERPO, fg=COLOR_TEXTO_OSCURO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=0, column=3, sticky="ew", ipady=8)
 
         # Fila 1: Tipo y Marca
-        tk.Label(form_frame, text="Tipo de Producto:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=1, column=0, sticky="w", pady=10)
-        ttk.Combobox(form_frame, textvariable=vars_prod["tipo_producto"], values=["Refacción", "Venta Directa"], state="readonly", font=FUENTE_CUERPO).grid(row=1, column=1, sticky="ew", padx=(0, 30), ipady=5)
+        tk.Label(form_frame, text="Tipo de Producto:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).grid(row=1, column=0, sticky="w", pady=(20, 5))
+        ttk.Combobox(form_frame, textvariable=vars_prod["tipo_producto"], values=["Refacción", "Venta Directa"], state="readonly", font=FUENTE_CUERPO, style="Custom.TCombobox").grid(row=1, column=1, sticky="ew", padx=(0, 30), ipady=8)
 
-        tk.Label(form_frame, text="Marca Compatible (Opcional):", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=1, column=2, sticky="w", pady=10)
-        tk.Entry(form_frame, textvariable=vars_prod["marca_compatible"], font=FUENTE_CUERPO, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=1, column=3, sticky="ew", ipady=5)
+        tk.Label(form_frame, text="Marca Compatible (Opcional):", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).grid(row=1, column=2, sticky="w", pady=(20, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["marca_compatible"], font=FUENTE_CUERPO, bg=COLOR_CUERPO, fg=COLOR_TEXTO_OSCURO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=1, column=3, sticky="ew", ipady=8)
 
-        # Fila 2: Stock y Precio
-        tk.Label(form_frame, text="Stock Inicial:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=2, column=0, sticky="w", pady=10)
-        tk.Entry(form_frame, textvariable=vars_prod["stock"], font=FUENTE_CUERPO, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=2, column=1, sticky="ew", padx=(0, 30), ipady=5)
+        # Fila 2: Stock 
+        tk.Label(form_frame, text="Stock Inicial:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg=COLOR_TEXTO_GRIS).grid(row=2, column=0, sticky="w", pady=(20, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["stock"], font=FUENTE_CUERPO, bg=COLOR_CUERPO, fg=COLOR_TEXTO_OSCURO, relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=2, column=1, sticky="ew", padx=(0, 30), ipady=8)
 
-        tk.Label(form_frame, text="Precio de Venta ($):", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL).grid(row=2, column=2, sticky="w", pady=10)
-        tk.Entry(form_frame, textvariable=vars_prod["precio_venta"], font=FUENTE_CUERPO, bg="#f8f9fa", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=2, column=3, sticky="ew", ipady=5)
+        # 🔥 Fila 3: SECCIÓN FINANCIERA (La magia real)
+        tk.Label(form_frame, text="Costo de Compra ($):", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg="#EF4444").grid(row=3, column=0, sticky="w", pady=(35, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["precio_compra"], font=FUENTE_CUERPO_BOLD, bg=COLOR_CUERPO, fg="#EF4444", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=3, column=1, sticky="ew", padx=(0, 30), ipady=8)
+
+        tk.Label(form_frame, text="Precio de Venta Público ($):", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_PANEL, fg="#10B981").grid(row=3, column=2, sticky="w", pady=(35, 5))
+        tk.Entry(form_frame, textvariable=vars_prod["precio_venta"], font=FUENTE_CUERPO_BOLD, bg=COLOR_CUERPO, fg="#10B981", relief="flat", highlightthickness=1, highlightbackground=COLOR_BORDE).grid(row=3, column=3, sticky="ew", ipady=8)
 
         form_frame.columnconfigure(1, weight=1)
         form_frame.columnconfigure(3, weight=1)
 
-        # Si estamos editando, cargamos los datos (Asumiendo que tienes una ruta para ver por SKU)
+        # Si estamos editando, cargamos los datos
         if sku_editar:
             try:
                 res = requests.post("https://www.ultracel.lat/api/inventario/obtener-por-sku", json={"sku": sku_editar, "taller_id": obtener_taller_id()})
@@ -737,6 +748,9 @@ class PanelVendedor:
                         vars_prod["tipo_producto"].set(prod_data.get('tipo_producto', 'Venta Directa'))
                         vars_prod["marca_compatible"].set(prod_data.get('marca_compatible', ''))
                         vars_prod["stock"].set(prod_data.get('stock', '0'))
+                        
+                        # 🔥 RECUPERAMOS AMBOS PRECIOS
+                        vars_prod["precio_compra"].set(prod_data.get('precio_compra', '0.00')) 
                         vars_prod["precio_venta"].set(prod_data.get('precio_venta', '0.00'))
                         
                         # Si es editar, bloqueamos el SKU para que no lo rompan
@@ -744,13 +758,13 @@ class PanelVendedor:
             except: pass
 
         def guardar_producto():
+            # Extraemos todos los valores del diccionario
             payload = {k: v.get() for k, v in vars_prod.items()}
             payload["taller_id"] = obtener_taller_id()
             
             if not payload["sku"] or not payload["nombre_producto"]:
                 return messagebox.showwarning("Datos Incompletos", "SKU y Nombre son obligatorios.")
 
-            # Ruta ficticia, asegúrate de tenerla en Laravel
             ruta_api = "https://www.ultracel.lat/api/inventario/actualizar" if sku_editar else "https://www.ultracel.lat/api/inventario/crear"
             
             try:
@@ -763,12 +777,11 @@ class PanelVendedor:
             except requests.exceptions.ConnectionError:
                 messagebox.showerror("Error", "Fallo de conexión al servidor.")
 
-        # Botón Guardar
+        # Botón Guardar (Ahora en la Fila 4)
         btn_frame = tk.Frame(form_frame, bg=COLOR_FONDO_PANEL)
-        btn_frame.grid(row=3, column=0, columnspan=4, pady=40)
+        btn_frame.grid(row=4, column=0, columnspan=4, pady=40)
         
         crear_boton(btn_frame, "💾 GUARDAR PRODUCTO", guardar_producto, COLOR_EXITO, height=2).pack(side="left", padx=10)
-        # Forzar actualizacion del scrollregion al inicio
         
     def eliminar_producto_seleccionado(self):
         item_sel = self.tree_inventario.selection()
@@ -840,66 +853,91 @@ class PanelVendedor:
                  bg=COLOR_PRIMARIO, fg=COLOR_TEXTO_BLANCO).pack(side="left", padx=15, pady=10)
 
         # --- INTERFAZ DE LA TABLA ---
+        # --- INTERFAZ DE LA TABLA ---
         tree_frame = tk.Frame(contenedor, bg=COLOR_FONDO_APP)
         tree_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
-        tree_historial = ttk.Treeview(tree_frame, columns=("ID", "Fecha", "Dispositivo", "Estado", "Presupuesto"),
+        # 1. 🔧 ¡AÑADIMOS LA COLUMNA PIN AL TREEVIEW!
+        tree_historial = ttk.Treeview(tree_frame, columns=("ID", "Fecha", "Dispositivo", "Estado", "Presupuesto", "PIN"),
                                       show="headings", style="Custom.Treeview")
         
-        tree_historial.heading("ID", text="ID Orden")
+        tree_historial.heading("ID", text="Folio")
         tree_historial.heading("Fecha", text="Fecha")
         tree_historial.heading("Dispositivo", text="Dispositivo")
         tree_historial.heading("Estado", text="Estado")
         tree_historial.heading("Presupuesto", text="Presupuesto")
+        tree_historial.heading("PIN", text="PIN App") # <-- NUEVA CABECERA
         
         tree_historial.column("ID", width=60, anchor="center")
         tree_historial.column("Fecha", width=100, anchor="center")
-        tree_historial.column("Dispositivo", width=250)
+        tree_historial.column("Dispositivo", width=220)
         tree_historial.column("Estado", width=120, anchor="center")
         tree_historial.column("Presupuesto", width=100, anchor="e")
+        tree_historial.column("PIN", width=80, anchor="center") # <-- NUEVO ANCHO
         
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree_historial.yview, style="Custom.Vertical.TScrollbar")
         tree_historial.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side="right", fill="y")
         tree_historial.pack(side="left", fill="both", expand=True)
 
-        # --- COLORES DE ESTADO (Igual que en el panel del Técnico) ---
+        # --- COLORES DE ESTADO ---
         tree_historial.tag_configure('oddrow', background=COLOR_FILA_IMPAR)
         tree_historial.tag_configure('evenrow', background=COLOR_FILA_PAR)
-        tree_historial.tag_configure('Recibido', background='#ffeaa7')             # Amarillo
-        tree_historial.tag_configure('En Reparación', background='#74b9ff')        # Azul
-        tree_historial.tag_configure('Esperando Aprobación', background='#fab1a0') # Naranja
-        tree_historial.tag_configure('Reparado', background='#55efc4')             # Verde Claro
-        tree_historial.tag_configure('Entregado', background='#dfe6e9')            # Gris (Ya se fue)
+        tree_historial.tag_configure('Recibido', background='#ffeaa7', foreground="black")             
+        tree_historial.tag_configure('En Reparación', background='#74b9ff', foreground="black")        
+        tree_historial.tag_configure('Esperando Aprobación', background='#fab1a0', foreground="black") 
+        tree_historial.tag_configure('Reparado', background='#55efc4', foreground="black")             
+        tree_historial.tag_configure('Entregado', background='#dfe6e9', foreground="black")   
+
+
 
         # --- LÓGICA DE DATOS CONEXIÓN A LARAVEL ---
         try:
-            mi_taller_id = obtener_taller_id() # 🔒 PASE VIP
+            mi_taller_id = obtener_taller_id()
             res = requests.post("https://www.ultracel.lat/api/clientes/historial", json={"id_cliente": id_cliente, "taller_id": mi_taller_id})
             if res.status_code == 200:
                 historial = res.json().get('historial', [])
                 if not historial:
-                    tree_historial.insert("", "end", values=("", "", "Este cliente no tiene reparaciones registradas.", "", ""))
+                    tree_historial.insert("", "end", values=("", "", "Este cliente no tiene reparaciones registradas.", "", "", ""))
                 else:
                     for i, rep in enumerate(historial):
-                        # Parche matemático de prevención
                         try:
                             presupuesto_formato = f"${float(rep['presupuesto']):.2f}" if rep.get('presupuesto') else "Sin Presupuesto"
                         except:
                             presupuesto_formato = "Sin Presupuesto"
                         
-                        # Decidimos el color: si es un estado conocido usamos ese color, si no, lo hacemos cebra
                         estado = rep.get('estado', '')
                         tag = estado if estado in ['Recibido', 'En Reparación', 'Esperando Aprobación', 'Reparado', 'Entregado'] else ('evenrow' if i % 2 == 0 else 'oddrow')
                         
+                        # 2. 🔧 ¡EXTRAEMOS EL PIN Y LO INYECTAMOS EN LA TABLA!
+                        pin_seguridad = rep.get('pin_cliente', 'Sin PIN')
+                        
                         tree_historial.insert("", "end", values=(
-                            rep['id_reparacion'], rep['fecha'], rep['dispositivo'], estado, presupuesto_formato
+                            rep['id_reparacion'], rep['fecha'], rep['dispositivo'], estado, presupuesto_formato, pin_seguridad
                         ), tags=(tag,))
             else:
                 print(f"🚨 Error en Historial: {res.text}")
         except Exception as e:
             print(f"🚨 Error Python: {e}")
             messagebox.showerror("Error", "No se pudo conectar con el servidor.")
+
+        # 🔥 EL FIX: BOTÓN DE REIMPRESIÓN DE RECEPCIÓN 🔥
+        botones_frame = tk.Frame(contenedor, bg=COLOR_FONDO_APP)
+        botones_frame.pack(pady=15, padx=20, fill="x", side="bottom")
+
+        def reimprimir_ticket_recepcion():
+            item_sel = tree_historial.selection()
+            if not item_sel:
+                return messagebox.showwarning("Selección Vacía", "Por favor, selecciona una reparación de la lista para reimprimir su ticket de ingreso.")
+            
+            # Sacamos el ID (Folio) de la reparación seleccionada
+            id_reparacion = tree_historial.item(item_sel[0], 'values')[0]
+            self.generar_e_imprimir_ticket(id_reparacion)
+
+        crear_boton(botones_frame, "🖨️ Reimprimir Ticket de Recepción", reimprimir_ticket_recepcion, COLOR_SECUNDARIO, height=2, fuente=FUENTE_CUERPO_BOLD).pack(side="right", fill="x", expand=True)
+
+
+            
     
     def agregar(self, nombre, precio):
         self.carrito.append((nombre, precio))
@@ -967,6 +1005,19 @@ class PanelVendedor:
         tree_detalles.column("Cant", width=40, anchor="center"); tree_detalles.column("Desc", width=150);
         tree_detalles.column("P. Unit", width=80, anchor="e"); tree_detalles.column("Subtotal", width=80, anchor="e");
         tree_detalles.pack(fill="both", expand=True, padx=10, pady=(0,10))
+        
+        # 🔥 EL FIX: BOTÓN DE REIMPRESIÓN DE VENTAS 🔥
+        def reimprimir_ticket_seleccionado():
+            item_sel = tree_ventas.selection()
+            if not item_sel:
+                return messagebox.showwarning("Selección Vacía", "Por favor, selecciona una venta de la lista izquierda para reimprimir su ticket.")
+            
+            # Sacamos el ID de la venta seleccionada en la tabla
+            id_venta = tree_ventas.item(item_sel[0], 'values')[0]
+            self.generar_e_imprimir_ticket_venta(id_venta)
+
+        crear_boton(col_derecha, "🖨️ Reimprimir Ticket de Venta", reimprimir_ticket_seleccionado, COLOR_PRIMARIO, height=2).pack(fill="x", padx=10, pady=(0, 15))
+
         # --- LOGICA DE LA BASE DE DATOS ---
         def cargar_lista_ventas():
             mi_taller_id = obtener_taller_id()
@@ -1356,6 +1407,10 @@ class PanelVendedor:
                     folio = datos.get('folio', 'N/A')
                     pin = datos.get('pin', 'N/A')
                     
+                    # ✨ LA MAGIA: Disparamos el PDF del ticket automáticamente si el folio es válido
+                    if folio != 'N/A':
+                        self.generar_e_imprimir_ticket(folio)
+                    
                     # --- EL NUEVO TICKET DE SEGURIDAD (MODAL PERSONALIZADO) ---
                     popup = tk.Toplevel(self.ventana)
                     popup.title("Ultracel | Ticket de Ingreso")
@@ -1439,6 +1494,38 @@ class PanelVendedor:
                 messagebox.showwarning("Indice invalido", "No existe ese numero de producto.")
         except:
             messagebox.showerror("Error", "Entrada invalida.")
+
+    
+
+    def generar_e_imprimir_ticket(self, id_reparacion):
+        """Llama a la API, genera el PDF y lo abre en el servidor"""
+        payload = {
+            "taller_id": obtener_taller_id(),
+            "id_reparacion": id_reparacion
+        }
+        
+        try:
+            res = requests.post("https://www.ultracel.lat/api/tickets/recepcion", json=payload)
+            if res.status_code == 200:
+                url_pdf = res.json().get('url_pdf')
+                # ✨ MAGIA: Abre el ticket en el navegador para mandarlo a la impresora térmica
+                webbrowser.open(url_pdf)
+            else:
+                messagebox.showerror("Error", "No se pudo generar el ticket en el servidor.")
+        except Exception as e:
+            messagebox.showerror("Error de Conexión", f"Detalle: {str(e)}")
+
+    def generar_e_imprimir_ticket_venta(self, id_venta):
+        payload = {"taller_id": obtener_taller_id(), "id_venta": id_venta}
+        try:
+            res = requests.post("https://www.ultracel.lat/api/tickets/venta", json=payload)
+            if res.status_code == 200:
+                webbrowser.open(res.json().get('url_pdf'))
+            else:
+                # 🔥 EL CHISMOSO: Ahora sí te mostrará el error exacto de Laravel en pantalla
+                messagebox.showerror("Error al crear PDF de Venta", f"Laravel dice:\n{res.text}")
+        except Exception as e:
+            messagebox.showerror("Error de Red (PDF)", f"Problema de conexión:\n{e}")
             
     def eliminar_cliente_seleccionado(self):
         item_sel = self.tree_clientes.selection()

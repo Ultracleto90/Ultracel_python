@@ -319,8 +319,8 @@ class PanelTecnico:
         crear_detalle(main_frame, "Clave Acceso", detalles.get('clave_acceso'))
 
         crear_seccion(main_frame, "Datos del Cliente")
-        crear_detalle(main_frame, "Nombre", f"{detalles.get('nombre')} {detalles.get('apellidos')}")
-        crear_detalle(main_frame, "Teléfono", detalles.get('telefono'))
+        crear_detalle(main_frame, "Nombre", detalles.get('cliente_nombre', 'Cliente Desconocido'))
+        crear_detalle(main_frame, "Teléfono", detalles.get('telefono', 'Sin teléfono'))
 
         crear_seccion(main_frame, "Detalles de la Reparación")
         crear_detalle(main_frame, "Problema Reportado", detalles.get('problema_reportado'))
@@ -492,6 +492,8 @@ class PanelTecnico:
 
             id_reparacion_seleccionada = int(id_reparacion_var.get().split(' - ')[0])
 
+            lista_piezas_agregadas = []
+
             col_frame = tk.Frame(form_container, bg=COLOR_FONDO_PANEL)
             col_frame.pack(fill="both", expand=True)
             col_frame.grid_columnconfigure(0, weight=1)
@@ -552,13 +554,29 @@ class PanelTecnico:
                 if not item_sel: return
                 pieza_data = tree_inventario.item(item_sel[0], 'values')
                 tree_piezas_usadas.insert("", "end", values=(pieza_data[0], pieza_data[1], f"${float(pieza_data[3]):.2f}"))
+                
+                # 🔥 FIX: Agregamos la pieza al diccionario que Laravel espera
+                lista_piezas_agregadas.append({
+                    "id_producto": pieza_data[0],
+                    "precio": float(pieza_data[3])
+                })
                 recalcular_presupuesto() 
             
             def quitar_pieza():
                 item_sel = tree_piezas_usadas.selection()
                 if not item_sel: return
+                
+                # 🔥 FIX: Obtenemos el ID de la pieza antes de borrarla del Treeview
+                id_pieza_a_borrar = tree_piezas_usadas.item(item_sel[0], 'values')[0]
+                
+                # Buscamos esa pieza en la lista y la removemos (solo la primera coincidencia por si hay repetidas)
+                for pieza in lista_piezas_agregadas:
+                    if str(pieza['id_producto']) == str(id_pieza_a_borrar):
+                        lista_piezas_agregadas.remove(pieza)
+                        break
+                        
                 tree_piezas_usadas.delete(item_sel[0])
-                recalcular_presupuesto() 
+                recalcular_presupuesto()
 
             # Botones de las piezas
             botones_piezas_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_PANEL)
@@ -566,19 +584,27 @@ class PanelTecnico:
             crear_boton(botones_piezas_frame, "⬅ Añadir Pieza", anadir_pieza, COLOR_SECUNDARIO, fuente=FUENTE_CUERPO_BOLD).pack(side="left", padx=5)
             crear_boton(botones_piezas_frame, "Quitar Pieza ➡", quitar_pieza, COLOR_PELIGRO, fuente=FUENTE_CUERPO_BOLD).pack(side="left", padx=5)
 
+            # --- ESTILO DARK ENTERPRISE PARA LOS INPUTS ---
+            estilo_entry = {
+                "font": FUENTE_CUERPO_BOLD, "bg": COLOR_FONDO_APP, "fg": COLOR_TEXTO_OSCURO, 
+                "insertbackground": COLOR_PRIMARIO, "relief": "flat", 
+                "highlightthickness": 1, "highlightbackground": COLOR_BORDE, "highlightcolor": COLOR_PRIMARIO
+            }
+
             # --- CUADRO DE TOTALES (DESGLOSE) ---
             totales_frame = tk.Frame(col_izquierda, bg=COLOR_FONDO_SECCION, padx=15, pady=10, highlightthickness=1, highlightbackground=COLOR_BORDE)
             totales_frame.pack(fill="x", pady=10)
             
-            # Usamos grid dentro del recuadro para alinearlos perfecto
-            tk.Label(totales_frame, text="Costo de Piezas $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS).grid(row=0, column=0, sticky="e", pady=2)
-            tk.Entry(totales_frame, textvariable=costo_piezas_var, font=FUENTE_CUERPO, state="readonly", width=12, justify="right").grid(row=0, column=1, padx=10, pady=2)
+            tk.Label(totales_frame, text="Costo de Piezas $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_GRIS).grid(row=0, column=0, sticky="e", pady=(10, 5))
+            # 🔥 FIX VISUAL: Usamos tk.Label para forzar el fondo oscuro y el texto rojo
+            tk.Label(totales_frame, textvariable=costo_piezas_var, width=15, anchor="e", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg="#EF4444").grid(row=0, column=1, padx=10, pady=(10, 5))
 
-            tk.Label(totales_frame, text="Mano de Obra $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).grid(row=1, column=0, sticky="e", pady=2)
-            tk.Entry(totales_frame, textvariable=mano_obra_var, font=FUENTE_CUERPO, width=12, justify="right", bg="#f8f9fa").grid(row=1, column=1, padx=10, pady=2)
+            tk.Label(totales_frame, text="Mano de Obra $:", font=FUENTE_CUERPO, bg=COLOR_FONDO_SECCION, fg=COLOR_TEXTO_OSCURO).grid(row=1, column=0, sticky="e", pady=5)
+            tk.Entry(totales_frame, textvariable=mano_obra_var, width=15, justify="right", **estilo_entry).grid(row=1, column=1, padx=10, pady=5, ipady=4)
 
-            tk.Label(totales_frame, text="TOTAL A COBRAR $:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).grid(row=2, column=0, sticky="e", pady=(8,2))
-            tk.Entry(totales_frame, textvariable=total_var, font=FUENTE_SUBTITULO, state="readonly", width=10, justify="right").grid(row=2, column=1, padx=10, pady=(8,2))
+            tk.Label(totales_frame, text="TOTAL A COBRAR $:", font=FUENTE_CUERPO_BOLD, bg=COLOR_FONDO_SECCION, fg=COLOR_PRIMARIO).grid(row=2, column=0, sticky="e", pady=(10, 10))
+            # 🔥 FIX VISUAL: Usamos tk.Label para forzar el fondo oscuro y el texto verde esmeralda
+            tk.Label(totales_frame, textvariable=total_var, width=15, anchor="e", font=FUENTE_TITULO, bg=COLOR_FONDO_SECCION, fg="#10B981").grid(row=2, column=1, padx=10, pady=(10, 10))
 
             # ==========================================
             # --- COLUMNA DERECHA (INVENTARIO) ---
@@ -647,6 +673,7 @@ class PanelTecnico:
                         payload = {
                             "taller_id": mi_taller_id, # 🔒 CANDADO AÑADIDO
                             "id_reparacion": id_reparacion_seleccionada,
+                            "id_tecnico": self.id_tecnico_logueado,
                             "diagnostico": diagnostico,
                             "presupuesto": float(presupuesto_final),
                             "piezas": piezas_a_usar
