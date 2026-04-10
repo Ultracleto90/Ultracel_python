@@ -188,22 +188,27 @@ def iniciar_sesion():
                 except:
                     return messagebox.showerror("Error", "Licencia corrupta. Vuelve a activar el software.")
                 
-                id_usuario = int(datos.get('id', 1))
+                id_usuario = str(datos.get('id', 1))
                 
                 app.destroy() # Destruimos la ventana de login
                 
-                # ✨ REDIRECCIÓN NATIVA (Ejecución en un solo archivo) ✨
-                if rol == "admin":
-                    # IMPORTANTE: Revisa que tu clase principal en ese archivo se llame así
-                    panel_administrador.PanelAdministrador(id_usuario) 
-                elif rol.lower() == "tecnico":
-                    # IMPORTANTE: Revisa que tu clase principal se llame así
-                    tecnico.PanelTecnico(id_usuario)
-                elif rol.lower() in ["vendedor", "recepcionista"]:
-                    # En tu archivo vendedor.py la clase se llama PanelVendedor
-                    vendedor.PanelVendedor(id_usuario)
+                # ✨ EL DISPARADOR INTELIGENTE (A prueba de .exe) ✨
+                rol_limpio = rol.lower()
+                if rol_limpio in ["vendedor", "recepcionista"]: 
+                    rol_limpio = "vendedor"
+                
+                import subprocess
+                import sys
+                
+                if getattr(sys, 'frozen', False):
+                    # Si estamos en el .exe compilado, se llama a sí mismo pasándole la llave del rol
+                    subprocess.Popen([sys.executable, rol_limpio, id_usuario])
                 else:
-                    messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")
+                    # Si estamos en desarrollo (.py), funciona normal
+                    subprocess.Popen([sys.executable, __file__, rol_limpio, id_usuario])
+                
+                sys.exit() # Apagamos el proceso viejo para que no se quede en la memoria
+                
             elif respuesta.status_code == 401:
                 messagebox.showerror("Acceso Denegado", "El correo o la contraseña son incorrectos.")
             elif respuesta.status_code == 403:
@@ -234,4 +239,18 @@ def iniciar_sesion():
     app.mainloop()
 
 if __name__ == "__main__":
-    iniciar_sesion()
+    # 🔥 ENRUTADOR MAESTRO
+    if len(sys.argv) > 1:
+        rol_solicitado = sys.argv[1].lower()
+        id_usuario = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+        
+        if rol_solicitado == "admin":
+            panel_administrador.PanelAdministrador(id_usuario)
+        elif rol_solicitado == "tecnico":
+            tecnico.PanelTecnico(id_usuario)
+        elif rol_solicitado == "vendedor":
+            vendedor.PanelVendedor(id_usuario)
+        else:
+            iniciar_sesion() # Botón de Cerrar Sesión cae aquí
+    else:
+        iniciar_sesion() # Arranque normal

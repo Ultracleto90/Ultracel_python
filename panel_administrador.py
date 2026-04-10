@@ -377,11 +377,18 @@ class PanelAdministrador:
         # Contenedor para empujar el botón de Cerrar Sesión hasta abajo
         tk.Frame(self.barra_lateral, bg="#111827").pack(fill="both", expand=True)
 
-        def confirmar_salida():
+        def confirmar_salida(self): # Asegúrate de que tenga el 'self' si está dentro de una clase
             if messagebox.askyesno("Confirmación", "¿Deseas cerrar sesión?"):
                 self.ventana.destroy()
+                
                 import subprocess
-                subprocess.Popen([sys.executable, "Login.py"])
+                import sys
+                
+                if getattr(sys, 'frozen', False):
+                    # Si es el .exe, lo ejecutamos vacío (sin rol) para que abra el Login
+                    subprocess.Popen([sys.executable]) 
+                else:
+                    subprocess.Popen([sys.executable, "Login.py"])
 
         # Botón de Cerrar Sesión (Rojo oscuro nativo)
         crear_boton_elegante("Cerrar Sesión", confirmar_salida, color_texto="#EF4444", color_hover="#DC2626", color_texto_hover="#FFFFFF")

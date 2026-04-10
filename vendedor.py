@@ -169,7 +169,11 @@ class PanelVendedor:
             if messagebox.askyesno("Confirmar salida", "¿Esta seguro que desea salir y regresar al Login?"):
                 self.ventana.destroy()
                 import subprocess
-                subprocess.Popen([sys.executable, "Login.py"])
+                import sys
+                if getattr(sys, 'frozen', False):
+                    subprocess.Popen([sys.executable]) # Lanza el Login.exe sin argumentos
+                else:
+                    subprocess.Popen([sys.executable, "Login.py"])
 
         crear_boton_elegante("Cerrar Sesión", salir_a_login, color_texto=COLOR_PELIGRO, color_hover="#DC2626", color_texto_hover="#FFFFFF")
         tk.Frame(self.menu_lateral, bg=COLOR_MENU_BG, height=20).pack(fill="x")

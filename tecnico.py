@@ -856,11 +856,17 @@ class PanelTecnico:
         actualizar_lista_solicitudes()
 
     def volver_al_login(self):
-        if messagebox.askyesno("Confirmacion", "Deseas cerrar sesion y volver al login?"):
+        if messagebox.askyesno("Confirmacion", "¿Deseas cerrar sesión y volver al login?"):
             self.ventana.destroy()
-            from Login import iniciar_sesion
-            iniciar_sesion()
-
+            
+            import subprocess
+            import sys
+            
+            if getattr(sys, 'frozen', False):
+                # Si es el .exe, lo ejecutamos vacío (sin rol) para que abra el Login
+                subprocess.Popen([sys.executable]) 
+            else:
+                subprocess.Popen([sys.executable, "Login.py"])
 
 if __name__ == "__main__":
     id_logueado = int(sys.argv[1]) if len(sys.argv) > 1 else 2
