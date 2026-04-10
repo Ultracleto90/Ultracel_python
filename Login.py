@@ -7,6 +7,10 @@ from tkinter import messagebox
 import customtkinter as ctk
 from PIL import Image
 
+import panel_administrador
+import tecnico
+import vendedor
+
 # --- CONFIGURACIÓN INICIAL DEL MOTOR GRÁFICO ---
 # Modo oscuro por defecto y color de acento azul
 ctk.set_appearance_mode("Dark")  
@@ -184,15 +188,22 @@ def iniciar_sesion():
                 except:
                     return messagebox.showerror("Error", "Licencia corrupta. Vuelve a activar el software.")
                 
-                id_usuario = str(datos.get('id', 1))
+                id_usuario = int(datos.get('id', 1))
                 
-                app.destroy()
+                app.destroy() # Destruimos la ventana de login
                 
-                # Redirección de paneles
-                if rol == "admin": subprocess.Popen([sys.executable, "panel_administrador.py", id_usuario])
-                elif rol.lower() == "tecnico": subprocess.Popen([sys.executable, "tecnico.py", id_usuario])
-                elif rol.lower() in ["vendedor", "recepcionista"]: subprocess.Popen([sys.executable, "vendedor.py", id_usuario])
-                else: messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")
+                # ✨ REDIRECCIÓN NATIVA (Ejecución en un solo archivo) ✨
+                if rol == "admin":
+                    # IMPORTANTE: Revisa que tu clase principal en ese archivo se llame así
+                    panel_administrador.PanelAdministrador(id_usuario) 
+                elif rol.lower() == "tecnico":
+                    # IMPORTANTE: Revisa que tu clase principal se llame así
+                    tecnico.PanelTecnico(id_usuario)
+                elif rol.lower() in ["vendedor", "recepcionista"]:
+                    # En tu archivo vendedor.py la clase se llama PanelVendedor
+                    vendedor.PanelVendedor(id_usuario)
+                else:
+                    messagebox.showerror("Error Crítico", f"El rol '{rol}' no tiene un panel asignado.")
             elif respuesta.status_code == 401:
                 messagebox.showerror("Acceso Denegado", "El correo o la contraseña son incorrectos.")
             elif respuesta.status_code == 403:
